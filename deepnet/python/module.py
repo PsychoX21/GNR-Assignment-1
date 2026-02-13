@@ -110,6 +110,15 @@ class Sequential(Module):
                 raise ValueError(f"Invalid layer type: {type(layer)}")
         return x
     
+    def backward(self, grad):
+        """Backward pass through all layers in reverse"""
+        for layer in reversed(self.layers):
+            if isinstance(layer, Module):
+                grad = layer.backward(grad)
+            elif hasattr(layer, 'backward'):
+                grad = layer.backward(grad)
+        return grad
+    
     def parameters(self):
         """Get all parameters from all layers"""
         params = []
@@ -132,6 +141,9 @@ class Conv2DWrapper(Module):
     
     def forward(self, x):
         return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
 
 
 class LinearWrapper(Module):
@@ -142,6 +154,9 @@ class LinearWrapper(Module):
     
     def forward(self, x):
         return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
 
 
 class ReLUWrapper(Module):
@@ -151,6 +166,9 @@ class ReLUWrapper(Module):
     
     def forward(self, x):
         return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
 
 
 class MaxPool2DWrapper(Module):
@@ -162,6 +180,9 @@ class MaxPool2DWrapper(Module):
     
     def forward(self, x):
         return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
 
 
 class BatchNorm2DWrapper(Module):
@@ -172,6 +193,9 @@ class BatchNorm2DWrapper(Module):
     
     def forward(self, x):
         return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
     
     def train(self):
         self._training = True
@@ -191,6 +215,9 @@ class BatchNorm1DWrapper(Module):
     def forward(self, x):
         return self.layer.forward(x)
     
+    def backward(self, grad):
+        return self.layer.backward(grad)
+    
     def train(self):
         self._training = True
         self.layer.train()
@@ -208,6 +235,9 @@ class DropoutWrapper(Module):
     def forward(self, x):
         return self.layer.forward(x)
     
+    def backward(self, grad):
+        return self.layer.backward(grad)
+    
     def train(self):
         self._training = True
         self.layer.train()
@@ -224,3 +254,56 @@ class FlattenWrapper(Module):
     
     def forward(self, x):
         return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
+
+
+class LeakyReLUWrapper(Module):
+    def __init__(self, negative_slope=0.01):
+        super().__init__()
+        self.layer = backend.LeakyReLU(negative_slope)
+    
+    def forward(self, x):
+        return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
+
+
+class TanhWrapper(Module):
+    def __init__(self):
+        super().__init__()
+        self.layer = backend.Tanh()
+    
+    def forward(self, x):
+        return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
+
+
+class SigmoidWrapper(Module):
+    def __init__(self):
+        super().__init__()
+        self.layer = backend.Sigmoid()
+    
+    def forward(self, x):
+        return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)
+
+
+class AvgPool2DWrapper(Module):
+    def __init__(self, kernel_size, stride=None):
+        super().__init__()
+        if stride is None:
+            stride = kernel_size
+        self.layer = backend.AvgPool2D(kernel_size, stride)
+    
+    def forward(self, x):
+        return self.layer.forward(x)
+    
+    def backward(self, grad):
+        return self.layer.backward(grad)

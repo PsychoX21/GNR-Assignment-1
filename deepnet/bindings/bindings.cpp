@@ -9,6 +9,7 @@
 #include "optimizers/optimizer.hpp"
 #include "optimizers/scheduler.hpp"
 #include "tensor.hpp"
+#include "cuda/cuda_utils.hpp"
 
 namespace py = pybind11;
 using namespace deepnet;
@@ -74,6 +75,11 @@ PYBIND11_MODULE(deepnet_backend, m) {
       // Math
       .def("exp", &Tensor::exp)
       .def("log", &Tensor::log)
+      .def("pow", &Tensor::pow, py::arg("exponent"))
+      .def("sqrt", &Tensor::sqrt)
+      .def("max", &Tensor::max, py::arg("dim") = -1, py::arg("keepdim") = false)
+      .def("min", &Tensor::min, py::arg("dim") = -1, py::arg("keepdim") = false)
+      .def("permute", &Tensor::permute)
 
       // Autograd
       .def("backward", &Tensor::backward, py::arg("gradient") = nullptr)
@@ -102,6 +108,7 @@ PYBIND11_MODULE(deepnet_backend, m) {
   // Base Layer
   py::class_<Layer, std::shared_ptr<Layer>>(m, "Layer")
       .def("forward", &Layer::forward)
+      .def("backward", &Layer::backward)
       .def("parameters", &Layer::parameters)
       .def("train", &Layer::train)
       .def("eval", &Layer::eval);
@@ -198,7 +205,8 @@ PYBIND11_MODULE(deepnet_backend, m) {
   // Loss functions
   py::class_<CrossEntropyLoss>(m, "CrossEntropyLoss")
       .def(py::init<>())
-      .def("forward", &CrossEntropyLoss::forward);
+      .def("forward", &CrossEntropyLoss::forward)
+      .def("get_input_grad", &CrossEntropyLoss::get_input_grad);
 
   py::class_<MSELoss>(m, "MSELoss")
       .def(py::init<>())
@@ -235,4 +243,8 @@ PYBIND11_MODULE(deepnet_backend, m) {
            py::arg("threshold") = 1e-4f, py::arg("min_lr") = 0.0f)
       .def("get_lr", &ReduceLROnPlateau::get_lr)
       .def("step", py::overload_cast<float>(&ReduceLROnPlateau::step));
+
+  // CUDA utilities
+  m.def("is_cuda_available", &cuda::is_cuda_available,
+        "Check if CUDA GPU is available");
 }

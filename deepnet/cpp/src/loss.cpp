@@ -86,7 +86,10 @@ TensorPtr CrossEntropyLoss::forward(const TensorPtr &input,
     throw std::runtime_error("Target size mismatch");
   }
 
-  // Compute log-softmax
+  // Compute softmax probabilities (needed for both loss and gradient)
+  auto probs = softmax(input);
+
+  // Compute log-softmax for numerically stable loss
   auto log_probs = log_softmax(input);
 
   // Compute negative log likelihood
@@ -97,6 +100,19 @@ TensorPtr CrossEntropyLoss::forward(const TensorPtr &input,
       throw std::runtime_error("Target class out of range");
     }
     total_loss -= log_probs->data[b * num_classes + target_class];
+  }
+
+  // Compute gradient: dL/d(logits) = softmax(logits) - one_hot(targets)
+  // divided by batch_size for mean reduction
+  input_grad = Tensor::zeros(input->shape, false, input->is_cuda);
+  for (int b = 0; b < batch; ++b) {
+    for (int c = 0; c < num_classes; ++c) {
+      float grad_val = probs->data[b * num_classes + c];
+      if (c == targets[b]) {
+        grad_val -= 1.0f;
+      }
+      input_grad->data[b * num_classes + c] = grad_val / batch;
+    }
   }
 
   // Return mean loss

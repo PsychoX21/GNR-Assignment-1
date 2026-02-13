@@ -3,17 +3,20 @@
 #include "cuda/cuda_ops.hpp"
 #include "cuda/cuda_utils.hpp"
 #include <cuda_runtime.h>
+#include <vector>
 
 
 namespace deepnet {
 namespace cuda {
 
 // Kernel implementations
-// Thread block size
 constexpr int BLOCK_SIZE = 256;
 constexpr int TILE_SIZE = 16;
 
-// Element-wise addition kernel
+// ============================================================
+// CUDA Kernels
+// ============================================================
+
 __global__ void add_kernel(const float *a, const float *b, float *out,
                            int size) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -22,13 +25,6 @@ __global__ void add_kernel(const float *a, const float *b, float *out,
   }
 }
 
-void add_cuda(const float *a, const float *b, float *out, int size) {
-  int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-  add_kernel<<<blocks, BLOCK_SIZE>>>(a, b, out, size);
-  CUDA_CHECK(cudaGetLastError());
-}
-
-// Element-wise multiplication kernel
 __global__ void mul_kernel(const float *a, const float *b, float *out,
                            int size) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -37,13 +33,6 @@ __global__ void mul_kernel(const float *a, const float *b, float *out,
   }
 }
 
-void mul_cuda(const float *a, const float *b, float *out, int size) {
-  int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-  mul_kernel<<<blocks, BLOCK_SIZE>>>(a, b, out, size);
-  CUDA_CHECK(cudaGetLastError());
-}
-
-// Matrix multiplication kernel (simple tiled version)
 __global__ void matmul_kernel(const float *A, const float *B, float *C, int M,
                               int N, int K) {
   __shared__ float As[TILE_SIZE][TILE_SIZE];
@@ -55,7 +44,6 @@ __global__ void matmul_kernel(const float *A, const float *B, float *C, int M,
   float sum = 0.0f;
 
   for (int t = 0; t < (K + TILE_SIZE - 1) / TILE_SIZE; ++t) {
-    // Load tiles into shared memory
     if (row < M && t * TILE_SIZE + threadIdx.x < K)
       As[threadIdx.y][threadIdx.x] = A[row * K + t * TILE_SIZE + threadIdx.x];
     else
@@ -68,7 +56,6 @@ __global__ void matmul_kernel(const float *A, const float *B, float *C, int M,
 
     __syncthreads();
 
-    // Compute partial dot product
     for (int k = 0; k < TILE_SIZE; ++k) {
       sum += As[threadIdx.y][k] * Bs[k][threadIdx.x];
     }
@@ -81,6 +68,43 @@ __global__ void matmul_kernel(const float *A, const float *B, float *C, int M,
   }
 }
 
+__global__ void relu_kernel(const float *input, float *output, int size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    output[idx] = fmaxf(0.0f, input[idx]);
+  }
+}
+
+__global__ void sigmoid_kernel(const float *input, float *output, int size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    output[idx] = 1.0f / (1.0f + expf(-input[idx]));
+  }
+}
+
+__global__ void tanh_kernel(const float *input, float *output, int size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    output[idx] = tanhf(input[idx]);
+  }
+}
+
+// ============================================================
+// Low-level kernel launchers (device pointers)
+// ============================================================
+
+void add_cuda(const float *a, const float *b, float *out, int size) {
+  int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  add_kernel<<<blocks, BLOCK_SIZE>>>(a, b, out, size);
+  CUDA_CHECK(cudaGetLastError());
+}
+
+void mul_cuda(const float *a, const float *b, float *out, int size) {
+  int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  mul_kernel<<<blocks, BLOCK_SIZE>>>(a, b, out, size);
+  CUDA_CHECK(cudaGetLastError());
+}
+
 void matmul_cuda(const float *a, const float *b, float *out, int M, int N,
                  int K) {
   dim3 block(TILE_SIZE, TILE_SIZE);
@@ -89,26 +113,10 @@ void matmul_cuda(const float *a, const float *b, float *out, int M, int N,
   CUDA_CHECK(cudaGetLastError());
 }
 
-// ReLU activation kernel
-__global__ void relu_kernel(const float *input, float *output, int size) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < size) {
-    output[idx] = fmaxf(0.0f, input[idx]);
-  }
-}
-
 void relu_cuda(const float *input, float *output, int size) {
   int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
   relu_kernel<<<blocks, BLOCK_SIZE>>>(input, output, size);
   CUDA_CHECK(cudaGetLastError());
-}
-
-// Sigmoid activation kernel
-__global__ void sigmoid_kernel(const float *input, float *output, int size) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < size) {
-    output[idx] = 1.0f / (1.0f + expf(-input[idx]));
-  }
 }
 
 void sigmoid_cuda(const float *input, float *output, int size) {
@@ -117,21 +125,16 @@ void sigmoid_cuda(const float *input, float *output, int size) {
   CUDA_CHECK(cudaGetLastError());
 }
 
-// Tanh activation kernel
-__global__ void tanh_kernel(const float *input, float *output, int size) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < size) {
-    output[idx] = tanhf(input[idx]);
-  }
-}
-
 void tanh_cuda(const float *input, float *output, int size) {
   int blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
   tanh_kernel<<<blocks, BLOCK_SIZE>>>(input, output, size);
   CUDA_CHECK(cudaGetLastError());
 }
 
-// Memory operations with error checking
+// ============================================================
+// Memory operations
+// ============================================================
+
 void *cuda_malloc(size_t size) {
   void *ptr;
   CUDA_CHECK(cudaMalloc(&ptr, size));
@@ -154,6 +157,125 @@ void cuda_memcpy_device_to_host(void *dst, const void *src, size_t size) {
 
 void cuda_memcpy_device_to_device(void *dst, const void *src, size_t size) {
   CUDA_CHECK(cudaMemcpy(dst, src, size, cudaMemcpyDeviceToDevice));
+}
+
+// ============================================================
+// High-level host wrappers: host vector -> GPU compute -> host vector
+// Pattern: allocate device mem, copy in, run kernel, copy out, free
+// ============================================================
+
+void add_cuda_host(const std::vector<float> &a, const std::vector<float> &b,
+                   std::vector<float> &out, int size) {
+  size_t bytes = size * sizeof(float);
+  float *d_a = (float *)cuda_malloc(bytes);
+  float *d_b = (float *)cuda_malloc(bytes);
+  float *d_out = (float *)cuda_malloc(bytes);
+
+  cuda_memcpy_host_to_device(d_a, a.data(), bytes);
+  cuda_memcpy_host_to_device(d_b, b.data(), bytes);
+
+  add_cuda(d_a, d_b, d_out, size);
+  cudaDeviceSynchronize();
+
+  cuda_memcpy_device_to_host(out.data(), d_out, bytes);
+
+  cuda_free(d_a);
+  cuda_free(d_b);
+  cuda_free(d_out);
+}
+
+void mul_cuda_host(const std::vector<float> &a, const std::vector<float> &b,
+                   std::vector<float> &out, int size) {
+  size_t bytes = size * sizeof(float);
+  float *d_a = (float *)cuda_malloc(bytes);
+  float *d_b = (float *)cuda_malloc(bytes);
+  float *d_out = (float *)cuda_malloc(bytes);
+
+  cuda_memcpy_host_to_device(d_a, a.data(), bytes);
+  cuda_memcpy_host_to_device(d_b, b.data(), bytes);
+
+  mul_cuda(d_a, d_b, d_out, size);
+  cudaDeviceSynchronize();
+
+  cuda_memcpy_device_to_host(out.data(), d_out, bytes);
+
+  cuda_free(d_a);
+  cuda_free(d_b);
+  cuda_free(d_out);
+}
+
+void matmul_cuda_host(const std::vector<float> &a, const std::vector<float> &b,
+                      std::vector<float> &out, int M, int N, int K) {
+  size_t bytes_a = M * K * sizeof(float);
+  size_t bytes_b = K * N * sizeof(float);
+  size_t bytes_out = M * N * sizeof(float);
+
+  float *d_a = (float *)cuda_malloc(bytes_a);
+  float *d_b = (float *)cuda_malloc(bytes_b);
+  float *d_out = (float *)cuda_malloc(bytes_out);
+
+  cuda_memcpy_host_to_device(d_a, a.data(), bytes_a);
+  cuda_memcpy_host_to_device(d_b, b.data(), bytes_b);
+
+  matmul_cuda(d_a, d_b, d_out, M, N, K);
+  cudaDeviceSynchronize();
+
+  cuda_memcpy_device_to_host(out.data(), d_out, bytes_out);
+
+  cuda_free(d_a);
+  cuda_free(d_b);
+  cuda_free(d_out);
+}
+
+void relu_cuda_host(const std::vector<float> &input,
+                    std::vector<float> &output, int size) {
+  size_t bytes = size * sizeof(float);
+  float *d_in = (float *)cuda_malloc(bytes);
+  float *d_out = (float *)cuda_malloc(bytes);
+
+  cuda_memcpy_host_to_device(d_in, input.data(), bytes);
+
+  relu_cuda(d_in, d_out, size);
+  cudaDeviceSynchronize();
+
+  cuda_memcpy_device_to_host(output.data(), d_out, bytes);
+
+  cuda_free(d_in);
+  cuda_free(d_out);
+}
+
+void sigmoid_cuda_host(const std::vector<float> &input,
+                       std::vector<float> &output, int size) {
+  size_t bytes = size * sizeof(float);
+  float *d_in = (float *)cuda_malloc(bytes);
+  float *d_out = (float *)cuda_malloc(bytes);
+
+  cuda_memcpy_host_to_device(d_in, input.data(), bytes);
+
+  sigmoid_cuda(d_in, d_out, size);
+  cudaDeviceSynchronize();
+
+  cuda_memcpy_device_to_host(output.data(), d_out, bytes);
+
+  cuda_free(d_in);
+  cuda_free(d_out);
+}
+
+void tanh_cuda_host(const std::vector<float> &input,
+                    std::vector<float> &output, int size) {
+  size_t bytes = size * sizeof(float);
+  float *d_in = (float *)cuda_malloc(bytes);
+  float *d_out = (float *)cuda_malloc(bytes);
+
+  cuda_memcpy_host_to_device(d_in, input.data(), bytes);
+
+  tanh_cuda(d_in, d_out, size);
+  cudaDeviceSynchronize();
+
+  cuda_memcpy_device_to_host(output.data(), d_out, bytes);
+
+  cuda_free(d_in);
+  cuda_free(d_out);
 }
 
 } // namespace cuda

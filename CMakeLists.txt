@@ -1,8 +1,12 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
+cmake_policy(SET CMP0091 NEW)
 project(DeepNet LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Force consistent CRT across all targets (static /MT to match pybind11)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # Optimization flags
 if(MSVC)
@@ -12,7 +16,12 @@ else()
 endif()
 
 # Find packages
-find_package(OpenMP REQUIRED)
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    message(STATUS "OpenMP found - parallel CPU enabled")
+else()
+    message(STATUS "OpenMP not found - building single-threaded (still works, just slower)")
+endif()
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 
 # Check for CUDA (optional)
@@ -46,7 +55,6 @@ endif()
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/deepnet/cpp/include
-    ${OpenCV_INCLUDE_DIRS}
 )
 
 if(USE_CUDA)
@@ -79,14 +87,13 @@ else()
     )
 endif()
 
-target_link_libraries(deepnet_core
-    OpenMP::OpenMP_CXX
-)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(deepnet_core OpenMP::OpenMP_CXX)
+endif()
 
 if(USE_CUDA)
-    target_link_libraries(deepnet_core ${CUDA_LIBRARIES})
     set_target_properties(deepnet_core PROPERTIES
-        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_SEPARABLE_COMPILATION OFF
         POSITION_INDEPENDENT_CODE ON
     )
 else()
@@ -98,6 +105,12 @@ endif()
 # Python bindings
 pybind11_add_module(deepnet_backend deepnet/bindings/bindings.cpp)
 target_link_libraries(deepnet_backend PRIVATE deepnet_core)
+
+if(USE_CUDA)
+    # Link CUDA runtime to the Python module to resolve math symbols
+    find_package(CUDAToolkit REQUIRED)
+    target_link_libraries(deepnet_backend PRIVATE CUDA::cudart_static)
+endif()
 
 # Installation
 install(TARGETS deepnet_backend LIBRARY DESTINATION deepnet)

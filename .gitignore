@@ -44,7 +44,9 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+build_log*.txt
+cmake_config*.txt
 
 # Dataset zip files
 datasets/*.zip
-datasets/*.png
+datasets/**/*.png

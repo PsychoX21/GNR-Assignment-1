@@ -46,11 +46,17 @@ def train_epoch(model, dataloader, criterion, optimizer, epoch, use_cuda=False):
         # Forward pass
         outputs = model(input_tensor)
         
-        # Compute loss
+        # Compute loss (also computes input_grad internally)
         loss_tensor = criterion.forward(outputs, labels)
         loss = loss_tensor.data[0]
         
-        # Update weights
+        # Backward pass: propagate gradients from loss through the network
+        # Get dL/d(logits) from the criterion and backprop through all layers
+        input_grad = criterion.get_input_grad()
+        if input_grad is not None:
+            model.backward(input_grad)
+        
+        # Update weights using computed gradients
         optimizer.step()
         
         # Calculate accuracy
@@ -182,7 +188,7 @@ def main():
     # Check CUDA availability
     use_cuda = False
     try:
-        use_cuda = backend.cuda.is_cuda_available() if hasattr(backend, 'cuda') else False
+        use_cuda = backend.is_cuda_available()
     except:
         use_cuda = False
     
@@ -215,7 +221,7 @@ def main():
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             save_checkpoint(model, optimizer, epoch, val_loss, 'checkpoints/best.pth')
-            print(f"✓ Saved best model (Val Acc: {best_val_acc:.2f}%)")
+            print(f"[BEST] Saved best model (Val Acc: {best_val_acc:.2f}%)")
         
         # Save periodic checkpoints
         if epoch % 10 == 0:

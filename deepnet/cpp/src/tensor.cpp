@@ -7,11 +7,9 @@
 #include <sstream>
 #include <stdexcept>
 
-
 #ifdef USE_CUDA
 #include "cuda/cuda_ops.hpp"
 #endif
-
 namespace deepnet {
 
 // Autograd function implementations
@@ -110,18 +108,18 @@ int Tensor::size() const { return shape.empty() ? 0 : shape[0]; }
 
 int Tensor::size(int dim) const {
   if (dim < 0)
-    dim += shape.size();
+    dim += static_cast<int>(shape.size());
   return shape[dim];
 }
 
-int Tensor::numel() const { return data.size(); }
+int Tensor::numel() const { return static_cast<int>(data.size()); }
 
-int Tensor::ndim() const { return shape.size(); }
+int Tensor::ndim() const { return static_cast<int>(shape.size()); }
 
 void Tensor::compute_strides() {
   strides.resize(shape.size());
   int stride = 1;
-  for (int i = shape.size() - 1; i >= 0; --i) {
+  for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
     strides[i] = stride;
     stride *= shape[i];
   }
@@ -141,7 +139,7 @@ TensorPtr Tensor::view(const std::vector<int> &new_shape) {
 
 TensorPtr Tensor::flatten(int start_dim, int end_dim) {
   if (end_dim == -1)
-    end_dim = shape.size() - 1;
+    end_dim = static_cast<int>(shape.size()) - 1;
 
   std::vector<int> new_shape;
   int flat_size = 1;
@@ -168,19 +166,19 @@ TensorPtr Tensor::add(const TensorPtr &other) {
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
 
+  // CUDA path
 #ifdef USE_CUDA
-  if (is_cuda && other->is_cuda) {
-    // GPU path
-    cuda::add_cuda(data.data(), other->data.data(), output->data.data(), numel());
-  } else {
+  if (is_cuda) {
+    cuda::add_cuda_host(data, other->data, output->data, (int)data.size());
+  } else
 #endif
+  {
     // CPU path
-    for (size_t i = 0; i < data.size(); ++i) {
+    #pragma omp parallel for
+    for (int i = 0; i < (int)data.size(); ++i) {
       output->data[i] = data[i] + other->data[i];
     }
-#ifdef USE_CUDA
   }
-#endif
 
   if (output->requires_grad) {
     auto grad_fn = std::make_shared<AddBackward>();
@@ -196,19 +194,19 @@ TensorPtr Tensor::mul(const TensorPtr &other) {
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
 
+  // CUDA path
 #ifdef USE_CUDA
-  if (is_cuda && other->is_cuda) {
-    // GPU path
-    cuda::mul_cuda(data.data(), other->data.data(), output->data.data(), numel());
-  } else {
+  if (is_cuda) {
+    cuda::mul_cuda_host(data, other->data, output->data, (int)data.size());
+  } else
 #endif
+  {
     // CPU path
-    for (size_t i = 0; i < data.size(); ++i) {
+    #pragma omp parallel for
+    for (int i = 0; i < (int)data.size(); ++i) {
       output->data[i] = data[i] * other->data[i];
     }
-#ifdef USE_CUDA
   }
-#endif
 
   if (output->requires_grad) {
     auto grad_fn = std::make_shared<MulBackward>();
@@ -227,7 +225,8 @@ TensorPtr Tensor::sub(const TensorPtr &other) {
 TensorPtr Tensor::div(const TensorPtr &other) {
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
-  for (size_t i = 0; i < data.size(); ++i) {
+  #pragma omp parallel for
+  for (int i = 0; i < (int)data.size(); ++i) {
     output->data[i] = data[i] / (other->data[i] + 1e-8f);
   }
   return output;
@@ -275,13 +274,15 @@ TensorPtr Tensor::matmul(const TensorPtr &other) {
   auto output =
       Tensor::zeros({M, N}, requires_grad || other->requires_grad, is_cuda);
 
+  // CUDA path
 #ifdef USE_CUDA
-  if (is_cuda && other->is_cuda) {
-    // GPU path
-    cuda::matmul_cuda(data.data(), other->data.data(), output->data.data(), M, N, K);
-  } else {
+  if (is_cuda) {
+    cuda::matmul_cuda_host(data, other->data, output->data, M, N, K);
+  } else
 #endif
-    // Simple matmul (can be optimized with BLAS or CUDA)
+  {
+    // CPU path
+    #pragma omp parallel for
     for (int i = 0; i < M; ++i) {
       for (int j = 0; j < N; ++j) {
         float sum = 0.0f;
@@ -291,9 +292,7 @@ TensorPtr Tensor::matmul(const TensorPtr &other) {
         output->data[i * N + j] = sum;
       }
     }
-#ifdef USE_CUDA
   }
-#endif
 
   if (output->requires_grad) {
     auto grad_fn = std::make_shared<MatMulBackward>();
@@ -333,8 +332,31 @@ TensorPtr Tensor::sum(int dim, bool keepdim) {
     return output;
   }
 
-  // Dimension-specific sum (simplified)
-  throw std::runtime_error("Dimension-specific sum not implemented yet");
+// Dimension-specific sum (simplified)
+  std::vector<int> new_shape;
+  int reduced_size = shape[dim];
+  int outer = 1, inner = 1;
+  for (int i = 0; i < dim; ++i) {
+    outer *= shape[i];
+    new_shape.push_back(shape[i]);
+  }
+  if (keepdim) new_shape.push_back(1);
+  for (size_t i = dim + 1; i < shape.size(); ++i) {
+    inner *= shape[i];
+    new_shape.push_back(shape[i]);
+  }
+
+  auto output = Tensor::zeros(new_shape, requires_grad, is_cuda);
+  for (int o = 0; o < outer; ++o) {
+    for (int n = 0; n < inner; ++n) {
+      float sum_val = 0.0f;
+      for (int r = 0; r < reduced_size; ++r) {
+        sum_val += data[(o * reduced_size + r) * inner + n];
+      }
+      output->data[o * inner + n] = sum_val;
+    }
+  }
+  return output;
 }
 
 TensorPtr Tensor::mean(int dim, bool keepdim) {
@@ -345,8 +367,16 @@ TensorPtr Tensor::mean(int dim, bool keepdim) {
 // Activations
 TensorPtr Tensor::relu() {
   auto output = Tensor::zeros(shape, requires_grad, is_cuda);
-  for (size_t i = 0; i < data.size(); ++i) {
-    output->data[i] = std::max(0.0f, data[i]);
+#ifdef USE_CUDA
+  if (is_cuda) {
+    cuda::relu_cuda_host(data, output->data, (int)data.size());
+  } else
+#endif
+  {
+    #pragma omp parallel for
+    for (int i = 0; i < (int)data.size(); ++i) {
+      output->data[i] = std::max(0.0f, data[i]);
+    }
   }
 
   if (requires_grad) {
@@ -360,7 +390,8 @@ TensorPtr Tensor::relu() {
 
 TensorPtr Tensor::leaky_relu(float negative_slope) {
   auto output = Tensor::zeros(shape, requires_grad, is_cuda);
-  for (size_t i = 0; i < data.size(); ++i) {
+  #pragma omp parallel for
+  for (int i = 0; i < (int)data.size(); ++i) {
     output->data[i] = data[i] > 0 ? data[i] : negative_slope * data[i];
   }
   return output;
@@ -368,16 +399,32 @@ TensorPtr Tensor::leaky_relu(float negative_slope) {
 
 TensorPtr Tensor::tanh_() {
   auto output = Tensor::zeros(shape, requires_grad, is_cuda);
-  for (size_t i = 0; i < data.size(); ++i) {
-    output->data[i] = std::tanh(data[i]);
+#ifdef USE_CUDA
+  if (is_cuda) {
+    cuda::tanh_cuda_host(data, output->data, (int)data.size());
+  } else
+#endif
+  {
+    #pragma omp parallel for
+    for (int i = 0; i < (int)data.size(); ++i) {
+      output->data[i] = std::tanh(data[i]);
+    }
   }
   return output;
 }
 
 TensorPtr Tensor::sigmoid() {
   auto output = Tensor::zeros(shape, requires_grad, is_cuda);
-  for (size_t i = 0; i < data.size(); ++i) {
-    output->data[i] = 1.0f / (1.0f + std::exp(-data[i]));
+#ifdef USE_CUDA
+  if (is_cuda) {
+    cuda::sigmoid_cuda_host(data, output->data, (int)data.size());
+  } else
+#endif
+  {
+    #pragma omp parallel for
+    for (int i = 0; i < (int)data.size(); ++i) {
+      output->data[i] = 1.0f / (1.0f + std::exp(-data[i]));
+    }
   }
   return output;
 }
@@ -385,7 +432,8 @@ TensorPtr Tensor::sigmoid() {
 // Math operations
 TensorPtr Tensor::exp() {
   auto output = Tensor::zeros(shape, requires_grad, is_cuda);
-  for (size_t i = 0; i < data.size(); ++i) {
+  #pragma omp parallel for
+  for (int i = 0; i < (int)data.size(); ++i) {
     output->data[i] = std::exp(data[i]);
   }
   return output;
@@ -393,9 +441,87 @@ TensorPtr Tensor::exp() {
 
 TensorPtr Tensor::log() {
   auto output = Tensor::zeros(shape, requires_grad, is_cuda);
-  for (size_t i = 0; i < data.size(); ++i) {
+  #pragma omp parallel for
+  for (int i = 0; i < (int)data.size(); ++i) {
     output->data[i] = std::log(data[i] + 1e-8f);
   }
+  return output;
+}
+
+TensorPtr Tensor::pow(float exponent) {
+  auto output = Tensor::zeros(shape, requires_grad, is_cuda);
+  #pragma omp parallel for
+  for (int i = 0; i < (int)data.size(); ++i) {
+    output->data[i] = std::pow(data[i], exponent);
+  }
+  return output;
+}
+
+TensorPtr Tensor::sqrt() {
+  auto output = Tensor::zeros(shape, requires_grad, is_cuda);
+  #pragma omp parallel for
+  for (int i = 0; i < (int)data.size(); ++i) {
+    output->data[i] = std::sqrt(data[i]);
+  }
+  return output;
+}
+
+TensorPtr Tensor::max(int dim, bool keepdim) {
+  if (dim == -1) {
+    float max_val = *std::max_element(data.begin(), data.end());
+    return Tensor::from_data({max_val}, {1}, false, is_cuda);
+  }
+  throw std::runtime_error("Dimension-specific max not implemented yet");
+}
+
+TensorPtr Tensor::min(int dim, bool keepdim) {
+  if (dim == -1) {
+    float min_val = *std::min_element(data.begin(), data.end());
+    return Tensor::from_data({min_val}, {1}, false, is_cuda);
+  }
+  throw std::runtime_error("Dimension-specific min not implemented yet");
+}
+
+TensorPtr Tensor::permute(const std::vector<int> &dims) {
+  // Only support 4D permute for now (most common: NCHW <-> NHWC)
+  if (dims.size() != shape.size()) {
+    throw std::runtime_error("permute: dims size must match tensor dimensions");
+  }
+
+  std::vector<int> new_shape(dims.size());
+  for (size_t i = 0; i < dims.size(); ++i) {
+    new_shape[i] = shape[dims[i]];
+  }
+
+  auto output = Tensor::zeros(new_shape, requires_grad, is_cuda);
+
+  // Generic permute using stride computation
+  std::vector<int> new_strides(dims.size());
+  int stride = 1;
+  for (int i = (int)dims.size() - 1; i >= 0; --i) {
+    new_strides[i] = stride;
+    stride *= new_shape[i];
+  }
+
+  int total = (int)data.size();
+  for (int flat = 0; flat < total; ++flat) {
+    // Convert flat index to multi-dimensional indices
+    int remaining = flat;
+    std::vector<int> old_idx(shape.size());
+    for (int d = 0; d < (int)shape.size(); ++d) {
+      old_idx[d] = remaining / strides[d];
+      remaining %= strides[d];
+    }
+
+    // Compute new flat index
+    int new_flat = 0;
+    for (size_t d = 0; d < dims.size(); ++d) {
+      new_flat += old_idx[dims[d]] * new_strides[d];
+    }
+
+    output->data[new_flat] = data[flat];
+  }
+
   return output;
 }
 
@@ -403,6 +529,11 @@ TensorPtr Tensor::log() {
 void Tensor::backward(const TensorPtr &gradient) {
   if (!requires_grad)
     return;
+
+  // Ensure grad buffer is allocated
+  if (grad.size() != data.size()) {
+    grad.resize(data.size(), 0.0f);
+  }
 
   if (gradient) {
     for (size_t i = 0; i < grad.size(); ++i) {
@@ -413,9 +544,11 @@ void Tensor::backward(const TensorPtr &gradient) {
   }
 
   if (grad_fn) {
-    auto input_grads = grad_fn->backward(shared_from_this());
+    // Create a gradient tensor from this tensor's accumulated grad
+    auto grad_tensor = Tensor::from_data(grad, shape, false, is_cuda);
+    auto input_grads = grad_fn->backward(grad_tensor);
     for (size_t i = 0; i < input_grads.size(); ++i) {
-      if (grad_fn->inputs[i]->requires_grad) {
+      if (i < grad_fn->inputs.size() && grad_fn->inputs[i]->requires_grad) {
         grad_fn->inputs[i]->backward(input_grads[i]);
       }
     }

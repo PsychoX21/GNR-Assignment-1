@@ -111,8 +111,8 @@ void Adam::step() {
     }
 
     // Compute bias correction
-    float m_hat_scale = 1.0f / (1.0f - std::pow(beta1, t));
-    float v_hat_scale = 1.0f / (1.0f - std::pow(beta2, t));
+    float m_hat_scale = 1.0f / (1.0f - static_cast<float>(std::pow(beta1, t)));
+    float v_hat_scale = 1.0f / (1.0f - static_cast<float>(std::pow(beta2, t)));
 
     // Update parameters: param -= lr * m_hat / (sqrt(v_hat) + eps)
     for (size_t j = 0; j < param->data.size(); ++j) {

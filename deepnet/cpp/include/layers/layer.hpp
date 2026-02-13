@@ -10,6 +10,9 @@ class Layer {
 public:
   virtual ~Layer() = default;
   virtual TensorPtr forward(const TensorPtr &input) = 0;
+  // Backward pass: receives gradient w.r.t. output, returns gradient w.r.t. input
+  // Also accumulates gradients into parameter .grad buffers
+  virtual TensorPtr backward(const TensorPtr &grad_output) { return grad_output; }
   virtual std::vector<TensorPtr> parameters() { return {}; }
   virtual void train() { training = true; }
   virtual void eval() { training = false; }
@@ -25,6 +28,7 @@ public:
          int padding = 0, bool bias = true);
 
   TensorPtr forward(const TensorPtr &input) override;
+  TensorPtr backward(const TensorPtr &grad_output) override;
   std::vector<TensorPtr> parameters() override;
 
 private:
@@ -33,6 +37,7 @@ private:
       weight; // Shape: [out_channels, in_channels, kernel_size, kernel_size]
   TensorPtr bias_; // Shape: [out_channels]
   bool use_bias;
+  TensorPtr last_input; // Cached for backward
 
   TensorPtr im2col(const TensorPtr &input);
   TensorPtr col2im(const TensorPtr &col, const std::vector<int> &output_shape);
@@ -44,6 +49,7 @@ public:
   Linear(int in_features, int out_features, bool bias = true);
 
   TensorPtr forward(const TensorPtr &input) override;
+  TensorPtr backward(const TensorPtr &grad_output) override;
   std::vector<TensorPtr> parameters() override;
 
 private:
@@ -51,6 +57,7 @@ private:
   TensorPtr weight; // Shape: [out_features, in_features]
   TensorPtr bias_;  // Shape: [out_features]
   bool use_bias;
+  TensorPtr last_input; // Cached for backward [batch, in_features]
 
   void xavier_init();
   void he_init();
@@ -61,6 +68,10 @@ class ReLU : public Layer {
 public:
   ReLU() = default;
   TensorPtr forward(const TensorPtr &input) override;
+  TensorPtr backward(const TensorPtr &grad_output) override;
+
+private:
+  TensorPtr last_input; // Cached for backward
 };
 
 // LeakyReLU Activation
@@ -68,9 +79,11 @@ class LeakyReLU : public Layer {
 public:
   LeakyReLU(float negative_slope = 0.01f) : negative_slope(negative_slope) {}
   TensorPtr forward(const TensorPtr &input) override;
+  TensorPtr backward(const TensorPtr &grad_output) override;
 
 private:
   float negative_slope;
+  TensorPtr last_input;
 };
 
 // Tanh Activation
@@ -78,6 +91,10 @@ class Tanh : public Layer {
 public:
   Tanh() = default;
   TensorPtr forward(const TensorPtr &input) override;
+  TensorPtr backward(const TensorPtr &grad_output) override;
+
+private:
+  TensorPtr last_output; // Cached for backward
 };
 
 // Sigmoid Activation
@@ -85,6 +102,10 @@ class Sigmoid : public Layer {
 public:
   Sigmoid() = default;
   TensorPtr forward(const TensorPtr &input) override;
+  TensorPtr backward(const TensorPtr &grad_output) override;
+
+private:
+  TensorPtr last_output; // Cached for backward
 };
 
 // Flatten Layer
@@ -94,9 +115,11 @@ public:
       : start_dim(start_dim), end_dim(end_dim) {}
 
   TensorPtr forward(const TensorPtr &input) override;
+  TensorPtr backward(const TensorPtr &grad_output) override;
 
 private:
   int start_dim, end_dim;
+  std::vector<int> original_shape; // Cached for backward
 };
 
 } // namespace deepnet

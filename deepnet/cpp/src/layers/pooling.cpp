@@ -1,8 +1,8 @@
 #include "layers/pooling.hpp"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
-
 
 namespace deepnet {
 
@@ -11,7 +11,6 @@ MaxPool2D::MaxPool2D(int kernel_size, int stride)
     : kernel_size(kernel_size), stride(stride == -1 ? kernel_size : stride) {}
 
 TensorPtr MaxPool2D::forward(const TensorPtr &input) {
-  // Input shape: [batch, channels, height, width]
   if (input->shape.size() != 4) {
     throw std::runtime_error("MaxPool2D expects 4D input");
   }
@@ -24,31 +23,39 @@ TensorPtr MaxPool2D::forward(const TensorPtr &input) {
   int out_h = (in_h - kernel_size) / stride + 1;
   int out_w = (in_w - kernel_size) / stride + 1;
 
-  auto output = Tensor::zeros({batch, channels, out_h, out_w},
-                              input->requires_grad, input->is_cuda);
+  // Cache input shape for backward
+  input_shape = input->shape;
 
-  // Perform max pooling
+  auto output = Tensor::zeros({batch, channels, out_h, out_w},
+                              true, input->is_cuda);
+
+  // Clear and resize max_indices
+  max_indices.resize(batch * channels * out_h * out_w);
+
+  #pragma omp parallel for
   for (int b = 0; b < batch; ++b) {
     for (int c = 0; c < channels; ++c) {
       for (int oh = 0; oh < out_h; ++oh) {
         for (int ow = 0; ow < out_w; ++ow) {
           float max_val = -std::numeric_limits<float>::infinity();
+          int max_idx = 0;
 
-          // Find max in kernel window
           for (int kh = 0; kh < kernel_size; ++kh) {
             for (int kw = 0; kw < kernel_size; ++kw) {
               int ih = oh * stride + kh;
               int iw = ow * stride + kw;
+              int in_idx = ((b * channels + c) * in_h + ih) * in_w + iw;
 
-              if (ih < in_h && iw < in_w) {
-                int in_idx = ((b * channels + c) * in_h + ih) * in_w + iw;
-                max_val = std::max(max_val, input->data[in_idx]);
+              if (input->data[in_idx] > max_val) {
+                max_val = input->data[in_idx];
+                max_idx = in_idx;
               }
             }
           }
 
           int out_idx = ((b * channels + c) * out_h + oh) * out_w + ow;
           output->data[out_idx] = max_val;
+          max_indices[out_idx] = max_idx;
         }
       }
     }
@@ -57,12 +64,22 @@ TensorPtr MaxPool2D::forward(const TensorPtr &input) {
   return output;
 }
 
+TensorPtr MaxPool2D::backward(const TensorPtr &grad_output) {
+  // Route gradients to the max elements
+  auto grad_input = Tensor::zeros(input_shape, false, grad_output->is_cuda);
+
+  for (size_t i = 0; i < max_indices.size(); ++i) {
+    grad_input->data[max_indices[i]] += grad_output->data[i];
+  }
+
+  return grad_input;
+}
+
 // AvgPool2D Implementation
 AvgPool2D::AvgPool2D(int kernel_size, int stride)
     : kernel_size(kernel_size), stride(stride == -1 ? kernel_size : stride) {}
 
 TensorPtr AvgPool2D::forward(const TensorPtr &input) {
-  // Input shape: [batch, channels, height, width]
   if (input->shape.size() != 4) {
     throw std::runtime_error("AvgPool2D expects 4D input");
   }
@@ -75,33 +92,31 @@ TensorPtr AvgPool2D::forward(const TensorPtr &input) {
   int out_h = (in_h - kernel_size) / stride + 1;
   int out_w = (in_w - kernel_size) / stride + 1;
 
-  auto output = Tensor::zeros({batch, channels, out_h, out_w},
-                              input->requires_grad, input->is_cuda);
+  input_shape = input->shape;
 
-  // Perform avg pooling
+  auto output = Tensor::zeros({batch, channels, out_h, out_w},
+                              true, input->is_cuda);
+
+  float pool_size = static_cast<float>(kernel_size * kernel_size);
+
+  #pragma omp parallel for
   for (int b = 0; b < batch; ++b) {
     for (int c = 0; c < channels; ++c) {
       for (int oh = 0; oh < out_h; ++oh) {
         for (int ow = 0; ow < out_w; ++ow) {
           float sum = 0.0f;
-          int count = 0;
 
-          // Sum all values in kernel window
           for (int kh = 0; kh < kernel_size; ++kh) {
             for (int kw = 0; kw < kernel_size; ++kw) {
               int ih = oh * stride + kh;
               int iw = ow * stride + kw;
-
-              if (ih < in_h && iw < in_w) {
-                int in_idx = ((b * channels + c) * in_h + ih) * in_w + iw;
-                sum += input->data[in_idx];
-                count++;
-              }
+              int in_idx = ((b * channels + c) * in_h + ih) * in_w + iw;
+              sum += input->data[in_idx];
             }
           }
 
           int out_idx = ((b * channels + c) * out_h + oh) * out_w + ow;
-          output->data[out_idx] = sum / count;
+          output->data[out_idx] = sum / pool_size;
         }
       }
     }
@@ -110,46 +125,40 @@ TensorPtr AvgPool2D::forward(const TensorPtr &input) {
   return output;
 }
 
-// AdaptiveAvgPool2D Implementation
-TensorPtr AdaptiveAvgPool2D::forward(const TensorPtr &input) {
-  // Simple implementation: pool to output_size x output_size
-  int batch = input->shape[0];
-  int channels = input->shape[1];
-  int in_h = input->shape[2];
-  int in_w = input->shape[3];
+TensorPtr AvgPool2D::backward(const TensorPtr &grad_output) {
+  int batch = input_shape[0];
+  int channels = input_shape[1];
+  int in_h = input_shape[2];
+  int in_w = input_shape[3];
 
-  auto output = Tensor::zeros({batch, channels, output_size, output_size},
-                              input->requires_grad, input->is_cuda);
+  int out_h = grad_output->shape[2];
+  int out_w = grad_output->shape[3];
+
+  auto grad_input = Tensor::zeros(input_shape, false, grad_output->is_cuda);
+
+  float pool_size = static_cast<float>(kernel_size * kernel_size);
 
   for (int b = 0; b < batch; ++b) {
     for (int c = 0; c < channels; ++c) {
-      for (int oh = 0; oh < output_size; ++oh) {
-        for (int ow = 0; ow < output_size; ++ow) {
-          int start_h = (oh * in_h) / output_size;
-          int end_h = ((oh + 1) * in_h) / output_size;
-          int start_w = (ow * in_w) / output_size;
-          int end_w = ((ow + 1) * in_w) / output_size;
+      for (int oh = 0; oh < out_h; ++oh) {
+        for (int ow = 0; ow < out_w; ++ow) {
+          int out_idx = ((b * channels + c) * out_h + oh) * out_w + ow;
+          float grad_val = grad_output->data[out_idx] / pool_size;
 
-          float sum = 0.0f;
-          int count = 0;
-
-          for (int ih = start_h; ih < end_h; ++ih) {
-            for (int iw = start_w; iw < end_w; ++iw) {
+          for (int kh = 0; kh < kernel_size; ++kh) {
+            for (int kw = 0; kw < kernel_size; ++kw) {
+              int ih = oh * stride + kh;
+              int iw = ow * stride + kw;
               int in_idx = ((b * channels + c) * in_h + ih) * in_w + iw;
-              sum += input->data[in_idx];
-              count++;
+              grad_input->data[in_idx] += grad_val;
             }
           }
-
-          int out_idx =
-              ((b * channels + c) * output_size + oh) * output_size + ow;
-          output->data[out_idx] = sum / count;
         }
       }
     }
   }
 
-  return output;
+  return grad_input;
 }
 
 } // namespace deepnet

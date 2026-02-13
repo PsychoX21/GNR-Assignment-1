@@ -1,68 +1,82 @@
 # DeepNet: Custom Deep Learning Framework
 
-**GNR638 Machine Learning for Remote Sensing Assignment**
+**GNR638 Machine Learning for Remote Sensing — Assignment 1**
 
-A high-performance CNN framework with C++ backend and Python 3.12 frontend, implementing all components from scratch.
+A high-performance CNN framework built from scratch with a C++ backend and Python frontend. Implements all tensor operations, layers, optimizers, and training utilities without any external ML libraries. Includes OpenMP for multi-threaded CPU parallelization and optional CUDA for GPU acceleration.
 
 ---
 
-## 🚀 Quick Start - Build Instructions
+## Quick Start
 
-### For Graders and First-Time Users:
+### Prerequisites
 
-**Step 1: Setup Environment (One-Time)**
+| Requirement | Minimum | Notes |
+|---|---|---|
+| Python | 3.10+ | 3.12+ recommended |
+| CMake | 3.15+ | [cmake.org/download](https://cmake.org/download/) |
+| Git | Any | For cloning pybind11 |
+| C++ Compiler | C++17 support | See platform-specific below |
+| OpenMP | Optional | Auto-detected, speeds up CPU |
+| CUDA Toolkit | Optional (11.0+) | Auto-detected, enables GPU |
+
+**Platform-specific compilers:**
+- **Windows**: Visual Studio 2019+ with "Desktop development with C++" workload
+- **Linux**: `sudo apt install build-essential cmake python3-dev`
+- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+
+### Build & Run
+
 ```bash
-# Run this once to create venv and install dependencies
+# 1. Setup environment (first time only)
 make setup
 
-# Activate the virtual environment:
-# On Linux/macOS:
+# 2. Activate virtual environment
+# Linux/macOS:
 source venv/bin/activate
-# On Windows (PowerShell):
+# Windows PowerShell:
 .\venv\Scripts\activate
-# On Windows (CMD):
+# Windows CMD:
 venv\Scripts\activate
-```
 
-**Step 2: Build and Install (Required)**
-```bash
-# Build C++ backend and install Python package
-make build
-make install
-
-# OR run both at once:
+# 3. Build C++ backend and install
 make build install
-```
 
-**Step 3: Train and Evaluate**
-```bash
-# Train on 10-class dataset (quick test with 2 epochs)
-python scripts/train.py --dataset datasets/data_1 --config configs/model_config.yaml --epochs 2
+# 4. Verify everything works
+make test
 
-# Full training (50 epochs)
-python scripts/train.py --dataset datasets/data_1 --config configs/model_config.yaml --epochs 50
-
-# Evaluate
-python scripts/evaluate.py --dataset datasets/data_1 --checkpoint checkpoints/best.pth
-```
-
-### Simplified One-Command Build:
-
-If `make setup` completes successfully, you can run everything at once:
-```bash
-make              # Does: setup + build + install
-source venv/bin/activate  # Linux/macOS
-python scripts/train.py --dataset datasets/data_1 --config configs/model_config.yaml --epochs 2
-```
-
-### Using Makefile Shortcuts:
-
-```bash
-# Train using Makefile (after build + install)
+# 5. Train
 make train DATA=data_1 EPOCHS=50
+```
 
-# Evaluate using Makefile
+**One-command build** (after activating venv):
+```bash
+make    # Does: setup + build + install
+```
+
+---
+
+## Makefile Targets
+
+| Target | Description |
+|---|---|
+| `make` | Full setup + build + install |
+| `make setup` | Create venv, install deps, clone pybind11 |
+| `make build` | Compile C++ backend with CMake |
+| `make install` | Copy compiled module and install Python package |
+| `make test` | Run all tests (layers + gradient + CUDA) |
+| `make test-layers` | Run layer/tensor operation tests |
+| `make test-gradient` | Run gradient and training convergence test |
+| `make test-cuda` | Run CUDA GPU acceleration tests |
+| `make train` | Train model (`DATA=`, `CONFIG=`, `EPOCHS=`, `BATCH_SIZE=`) |
+| `make eval` | Evaluate model (`DATA=`, `MODEL=`) |
+| `make clean` | Remove build artifacts |
+| `make distclean` | Deep clean (also removes venv, pybind11) |
+
+**Examples:**
+```bash
+make train DATA=data_1 CONFIG=configs/model_config.yaml EPOCHS=50
 make eval DATA=data_1 MODEL=checkpoints/best.pth
+make test-cuda  # Verify GPU acceleration
 ```
 
 ---
@@ -70,137 +84,63 @@ make eval DATA=data_1 MODEL=checkpoints/best.pth
 ## Project Structure
 
 ```
-Assignment 1/
-├── Makefile                    # Build system
-├── CMakeLists.txt              # CMake configuration
-├── setup.py                    # Python package installer
-├── requirements.txt            # Python dependencies
+GNR-Assignment-1/
+├── Makefile                        # Cross-platform build system
+├── CMakeLists.txt                  # CMake configuration
+├── setup.py                        # Python package installer
+├── requirements.txt                # Python dependencies (opencv, pyyaml, tqdm)
 │
-├── deepnet/                    # Custom Framework
-│   ├── cpp/                    # C++ Backend
-│   │   ├── include/            # Headers
-│   │   │   ├── tensor.hpp              # Tensor with autograd
-│   │   │   ├── loss.hpp                # Loss functions
+├── deepnet/                        # Framework
+│   ├── cpp/                        # C++ Backend
+│   │   ├── include/
+│   │   │   ├── tensor.hpp                 # Tensor with autograd support
+│   │   │   ├── loss.hpp                   # CrossEntropyLoss, MSELoss
 │   │   │   ├── layers/
-│   │   │   │   ├── layer.hpp           # Conv2D, Linear, activations
-│   │   │   │   ├── pooling.hpp         # Pooling layers
-│   │   │   │   └── batchnorm.hpp       # BatchNorm, Dropout
+│   │   │   │   ├── layer.hpp              # Conv2D, Linear, activations
+│   │   │   │   ├── pooling.hpp            # MaxPool2D, AvgPool2D
+│   │   │   │   └── batchnorm.hpp          # BatchNorm2D, BatchNorm1D, Dropout
 │   │   │   ├── optimizers/
-│   │   │   │   ├── optimizer.hpp       # SGD, Adam
-│   │   │   │   └── scheduler.hpp       # LR schedulers
-│   │   │   └── cuda/                    # CUDA headers (optional GPU)
-│   │   └── src/                # Implementations
-│   ├── bindings/bindings.cpp   # pybind11 Python bindings
-│   └── python/                 # Python API
-│       ├── data.py             # Dataset loader
-│       ├── module.py           # Module system
-│       └── models.py           # Model builder
+│   │   │   │   ├── optimizer.hpp          # SGD (with momentum), Adam
+│   │   │   │   └── scheduler.hpp          # StepLR, CosineAnnealingLR
+│   │   │   └── cuda/
+│   │   │       ├── cuda_ops.hpp           # CUDA kernel declarations
+│   │   │       └── cuda_utils.hpp         # CUDA utilities and fallbacks
+│   │   └── src/
+│   │       ├── tensor.cpp                 # Tensor ops with OpenMP + CUDA dispatch
+│   │       ├── loss.cpp                   # Loss function implementations
+│   │       ├── layers/
+│   │       │   ├── layer.cpp              # Conv2D, Linear, activations (OpenMP)
+│   │       │   ├── pooling.cpp            # Pooling layers (OpenMP)
+│   │       │   └── batchnorm.cpp          # BatchNorm layers (OpenMP)
+│   │       ├── optimizers/optimizer.cpp   # Optimizer implementations
+│   │       └── cuda/cuda_kernels.cu       # CUDA GPU kernels
+│   │
+│   ├── bindings/bindings.cpp       # pybind11 Python bindings
+│   └── python/
+│       ├── data.py                 # Dataset loading, augmentation
+│       ├── module.py               # PyTorch-like Module, Sequential
+│       └── models.py               # YAML model builder, stats calculator
 │
 ├── scripts/
-│   ├── train.py                # Training script
-│   └── evaluate.py             # Evaluation script
+│   ├── train.py                    # Training script
+│   ├── evaluate.py                 # Evaluation script
+│   ├── test_all_layers.py          # Layer correctness tests
+│   ├── test_gradient.py            # Gradient and training tests
+│   └── test_cuda.py                # CUDA GPU tests
 │
 ├── configs/
-│   └── model_config.yaml       # CNN model configuration
+│   ├── model_config.yaml           # Default CNN architecture
+│   ├── model_config_fast.yaml      # Lightweight architecture
+│   └── model_config_simple.yaml    # Minimal architecture
 │
 ├── utils/
-│   ├── metrics.py              # Parameters, MACs, FLOPs
-│   └── visualization.py        # Logging utilities
+│   ├── metrics.py                  # Parameters, MACs, FLOPs calculation
+│   └── visualization.py            # Logging utilities
 │
-└── datasets/                   # Data folder
-    ├── data_1.zip              # 10-class dataset
-    ├── data_2.zip              # 100-class dataset
-    ├── data_1/                 # Auto-extracted
-    └── data_2/                 # Auto-extracted
+└── datasets/                       # Data (auto-extracted from .zip)
+    ├── data_1.zip                  # 10-class dataset
+    └── data_2.zip                  # 100-class dataset
 ```
-
----
-
-## Build System
-
-### Prerequisites
-
-**System:**
-- Python 3.12+
-- CMake 3.12+
-- Git
-
-**Compiler:**
-- **Windows**: Visual Studio 2019+ (MSVC) or MinGW-w64
-- **Linux/Mac**: GCC 9+ or Clang 10+
-
-**Optional:**
-- CUDA Toolkit 11.0+ (for GPU acceleration)
-
-**Important:** The framework is built for 64-bit systems. Ensure your compiler targets x64/x86_64 architecture. Using 32-bit compilers will cause build failures.
-
-### What is setup.py?
-
-`setup.py` is a Python packaging file that:
-1. Makes `deepnet` importable as a Python package
-2. Links the compiled C++ backend (`deepnet_backend.so` / `.pyd`) to Python
-3. Installs dependencies (opencv-python, pyyaml, tqdm)
-4. Enables `import deepnet_backend` in your scripts
-
-It's required to connect the C++ code to Python.
-
-### Build Process
-
-The Makefile **automatically detects your OS** (Windows/Linux/macOS) and uses the correct commands.
-
-```bash
-# Option 1: All-in-one (does setup + build + install)
-make
-
-# Option 2: Step-by-step (recommended for understanding)
-make setup      # Clone pybind11, create venv, install Python deps
-
-# Activate virtual environment:
-source venv/bin/activate      # Linux/macOS
-.\venv\Scripts\activate       # Windows PowerShell
-venv\Scripts\activate         # Windows CMD
-
-make build      # Compile C++ backend
-make install    # Install Python package
-```
-
-**What happens during build:**
-1. CMake detects your compiler and CUDA (if available)
-2. C++ code compiled with optimization (`-O3 -march=native` for GCC/Clang, `/O2` for MSVC)
-3. Creates `build/deepnet_backend.so` (Linux/Mac) or `.pyd` (Windows)
-4. `make install` copies it to project root and links it to Python
-
-**Cross-Platform Support:**
-- ✅ **Windows**: Auto-detects and uses appropriate commands (mkdir, copy, etc.)
-- ✅ **Linux/WSL**: Uses bash/sh commands
-- ✅ **macOS**: Fully supported
-
----
-
-## Dataset Format
-
-Datasets are auto-extracted on first use:
-
-```
-datasets/
-├── data_1.zip          # Put zip files here
-├── data_2.zip
-├── data_1/             # Auto-extracted on first train
-│   ├── class_0/
-│   │   ├── img1.png
-│   │   └── ...
-│   ├── class_1/
-│   └── ...
-└── data_2/             # Auto-extracted on first train
-    ├── class_0/
-    └── ...
-```
-
-The framework automatically:
-- Detects if `datasets/data_1/` exists
-- If not, extracts from `datasets/data_1.zip`
-- Splits into train/validation (80/20 by default)
-- Applies data augmentation to training set
 
 ---
 
@@ -210,25 +150,21 @@ The framework automatically:
 python scripts/train.py --dataset datasets/data_1 --config configs/model_config.yaml --epochs 50 --batch-size 64
 ```
 
-**Arguments:**
-- `--dataset`: Path to dataset directory (required)
-- `--config`: Path to model configuration YAML file (required)
-- `--epochs`: Number of epochs (default: 50)
-- `--batch-size`: Batch size (default: 64)
-- `--val-split`: Validation ratio (default: 0.2)
-- `--checkpoint-dir`: Directory to save checkpoints (default: checkpoints)
-
-**Printed Metrics:**
-- Dataset loading time (seconds)
-- Number of classes
-- Train/val sample counts
-- Model parameters, MACs, FLOPs
-- Per-epoch train/val loss and accuracy
+| Argument | Default | Description |
+|---|---|---|
+| `--dataset` | (required) | Path to dataset directory |
+| `--config` | (required) | Path to model config YAML |
+| `--epochs` | 50 | Number of training epochs |
+| `--batch-size` | 64 | Batch size |
+| `--val-split` | 0.2 | Train/validation split ratio |
+| `--checkpoint-dir` | `checkpoints` | Where to save model checkpoints |
 
 **Outputs:**
-- `checkpoints/best.pth` - Best validation accuracy
-- `checkpoints/epoch_N.pth` - Periodic checkpoints
-- `logs/` - Training logs
+- `checkpoints/best.pth` — Best validation accuracy model
+- `checkpoints/epoch_N.pth` — Periodic checkpoints (every 10 epochs)
+- Console: per-epoch train/val loss, accuracy, timing
+
+**CUDA:** If an NVIDIA GPU is detected, tensor operations automatically dispatch to GPU kernels. No code changes needed — the script prints `CUDA status: enabled` at startup.
 
 ---
 
@@ -238,22 +174,13 @@ python scripts/train.py --dataset datasets/data_1 --config configs/model_config.
 python scripts/evaluate.py --dataset datasets/data_1 --checkpoint checkpoints/best.pth
 ```
 
-**Arguments:**
-- `--dataset`: Path to dataset directory (required)
-- `--checkpoint`: Path to checkpoint file (required)
-- `--config`: Path to model configuration YAML (default: configs/model_config.yaml)
-- `--batch-size`: Batch size (default: 64)
-
-**Printed Metrics:**
-- Dataset loading time
-- Overall accuracy and loss
-- Per-class accuracy breakdown
+Prints overall accuracy, loss, and per-class accuracy breakdown.
 
 ---
 
 ## Model Configuration
 
-Single model config: `configs/model_config.yaml`
+Models are defined in YAML files (see `configs/`):
 
 ```yaml
 model:
@@ -271,7 +198,7 @@ model:
     - Linear: {in_features: 512, out_features: num_classes}
 
 training:
-  optimizer: Adam
+  optimizer: Adam        # SGD or Adam
   learning_rate: 0.001
   weight_decay: 0.0001
 
@@ -283,44 +210,89 @@ augmentation:
   contrast: true
 ```
 
-The model automatically adapts to 10 or 100 classes based on the dataset.
+The `num_classes` placeholder is automatically replaced based on the dataset (10 or 100).
+
+---
+
+## Dataset Format
+
+Place `.zip` files in `datasets/`. They are auto-extracted on first training run.
+
+```
+datasets/data_1/
+├── class_0/
+│   ├── img001.png
+│   └── ...
+├── class_1/
+└── ...
+```
+
+---
+
+## OpenMP & CUDA Acceleration
+
+### OpenMP (CPU Parallelization)
+- **Auto-detected** at build time
+- Parallelizes ~25 compute-heavy loops across all layers
+- Falls back to single-threaded if not available
+- Supported on Windows (MSVC), Linux (GCC), macOS (Clang with libomp)
+
+### CUDA (GPU Acceleration)
+- **Auto-detected** at build time (requires NVIDIA GPU + CUDA Toolkit)
+- 6 CUDA-accelerated operations: add, mul, matmul, relu, sigmoid, tanh
+- Uses copy-in → GPU compute → copy-out pattern
+- Runtime check: `backend.is_cuda_available()` — falls back to CPU if no GPU
+- Verify with: `make test-cuda`
+
+**Build output** indicates what was detected:
+```
+-- OpenMP found - parallel CPU enabled
+-- CUDA found - GPU acceleration enabled
+```
 
 ---
 
 ## Implementation Details
 
 ### C++ Backend
-- All tensor operations in C++17
-- Optimized with compiler flags (`-O3`, `-march=native`)
-- OpenMP parallelization for CPU
-- Optional CUDA GPU acceleration
+- All tensor operations in C++17, compiled with optimization flags
+- MSVC: `/O2 /arch:AVX2` | GCC/Clang: `-O3 -march=native -ffast-math`
+- OpenMP parallelization across all compute-heavy loops
+- Optional CUDA GPU kernels (tiled shared-memory matmul)
 
-### Autograd Engine
-- Dynamic computational graph
-- Gradient tracking per tensor
-- Backward pass with chain rule
+### Layers Implemented
+| Layer | Forward | Backward |
+|---|---|---|
+| Conv2D | ✅ | ✅ |
+| Linear | ✅ | ✅ |
+| ReLU, LeakyReLU, Tanh, Sigmoid | ✅ | ✅ |
+| MaxPool2D, AvgPool2D | ✅ | ✅ |
+| BatchNorm2D, BatchNorm1D | ✅ | ✅ |
+| Dropout | ✅ | ✅ |
+| Flatten | ✅ | ✅ |
+
+### Optimizers
+- **SGD** with momentum and weight decay
+- **Adam** with bias correction
 
 ### No External ML Libraries
-- No NumPy for computations (only OpenCV for image I/O)
-- No PyTorch/TensorFlow/JAX
-- Custom implementations of all layers and operations
+- All computations implemented from scratch in C++
+- No NumPy, PyTorch, TensorFlow, or JAX
+- Only external libs: OpenCV (image I/O), pybind11 (bindings), PyYAML (config), tqdm (progress bars)
 
 ---
 
-## Allowed Libraries
+## Cross-Platform Compatibility
 
-**Used:**
-- Python 3.12 standard library
-- C++ standard library (C++17)
-- OpenCV (image loading and preprocessing only)
-- pybind11 (Python bindings)
-- PyYAML (config files)
-- tqdm (progress bars)
+| Feature | Windows | Linux | macOS |
+|---|---|---|---|
+| Build system | ✅ MSVC | ✅ GCC | ✅ Clang |
+| OpenMP | ✅ Built-in | ✅ Built-in | ✅ via `brew install libomp` |
+| CUDA | ✅ | ✅ | ❌ (no NVIDIA GPUs) |
+| Makefile | ✅ Auto-detects OS | ✅ | ✅ |
+| CMake | ✅ Visual Studio generator | ✅ Unix Makefiles | ✅ Unix Makefiles |
 
-**Not Used:**
-- NumPy (for numerical operations)
-- Any deep learning framework
-- Any automatic differentiation library
+The Makefile auto-detects the operating system and uses the appropriate commands (e.g., `copy` vs `cp`, `mkdir` vs `mkdir -p`).
 
 ---
 
@@ -328,7 +300,7 @@ The model automatically adapts to 10 or 100 classes based on the dataset.
 
 ### "Module 'deepnet_backend' not found"
 ```bash
-make clean && make
+make clean && make build install
 ```
 
 ### "pybind11 not found"
@@ -336,34 +308,44 @@ make clean && make
 git clone https://github.com/pybind/pybind11.git
 ```
 
-### IDE Errors ("Too many errors emitted")
-This is a clangd/IntelliSense issue with C++ template-heavy code and CUDA files. These are IDE-only errors and **do not affect compilation**. The code compiles and runs correctly. You can:
-- Ignore the IDE errors
-- Close the C++ files showing errors
-- The `make` build will succeed regardless
+### Build fails on Windows
+- Install Visual Studio 2019+ with "Desktop development with C++" workload
+- Ensure x64 architecture is targeted (64-bit)
 
-### Build Fails on Windows
-- Install Visual Studio 2019+ with "Desktop development with C++"
-- Ensure you're building for x64 architecture
-- Or use MinGW-w64 (64-bit version)
-
-### Build Fails on Linux
+### Build fails on Linux
 ```bash
 sudo apt install build-essential cmake python3-dev
 ```
+
+### Build fails on macOS
+```bash
+xcode-select --install
+# For OpenMP:
+brew install libomp
+```
+
+### CUDA-related build errors
+- Ensure CUDA Toolkit is installed and `nvcc` is in PATH
+- The build automatically falls back to CPU-only if CUDA is not found
+
+### IDE Errors (clangd / IntelliSense)
+CUDA/template-heavy C++ code may trigger IDE squiggles. These are IDE-only and **do not affect compilation**. The `make build` will succeed regardless.
 
 ---
 
 ## Assignment Compliance
 
-- ✅ Custom framework from scratch
-- ✅ C++ backend (+20 bonus points)
-- ✅ Tensor with autograd
-- ✅ All required layers (Conv, Pool, FC, Activation)
+- ✅ Custom framework from scratch (no PyTorch/TensorFlow/NumPy)
+- ✅ C++ backend with Python bindings (+20 bonus)
+- ✅ All required layers: Conv2D, Pooling, Linear, Activations, BatchNorm, Dropout
+- ✅ Manual forward and backward passes for all layers
+- ✅ SGD and Adam optimizers
 - ✅ Dataset loading with measured time
 - ✅ Parameters, MACs, FLOPs calculation
-- ✅ Training < 3 hours per dataset
-- ✅ Only allowed libraries (no NumPy/PyTorch/etc.)
+- ✅ OpenMP CPU parallelization
+- ✅ CUDA GPU acceleration (optional)
+- ✅ Training under 3 hours per dataset
+- ✅ Only allowed libraries used
 
 ---
 

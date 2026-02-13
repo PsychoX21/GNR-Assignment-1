@@ -33,7 +33,7 @@ public:
 
   float get_lr(int epoch) override {
     int num_drops = epoch / step_size;
-    return base_lr * std::pow(gamma, num_drops);
+    return base_lr * static_cast<float>(std::pow(gamma, num_drops));
   }
 
   float step() override {
@@ -54,7 +54,7 @@ public:
     current_epoch = 0;
   }
 
-  float get_lr(int epoch) override { return base_lr * std::pow(gamma, epoch); }
+  float get_lr(int epoch) override { return base_lr * static_cast<float>(std::pow(gamma, epoch)); }
 
   float step() override {
     current_epoch++;
@@ -75,7 +75,7 @@ public:
   }
 
   float get_lr(int epoch) override {
-    float cosine = std::cos(M_PI * epoch / T_max);
+    float cosine = static_cast<float>(std::cos(M_PI * epoch / T_max));
     return eta_min + (base_lr - eta_min) * (1.0f + cosine) / 2.0f;
   }
 

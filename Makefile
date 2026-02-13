@@ -11,6 +11,8 @@ ifeq ($(OS),Windows_NT)
     RM := rmdir /s /q
     RM_FILE := del /f /q
     PATH_SEP := \\
+    # Find the .pyd file in build directory (may be in Release/ subfolder on VS)
+    COPY_PYD = (if exist build\\Release\\deepnet_backend*.pyd (copy build\\Release\\deepnet_backend*.pyd deepnet\\ >nul) else (copy build\\deepnet_backend*.pyd deepnet\\ >nul))
 else
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Linux)
@@ -26,6 +28,7 @@ else
     RM := rm -rf
     RM_FILE := rm -f
     PATH_SEP := /
+    COPY_PYD = cp build/deepnet_backend*.so deepnet/ 2>/dev/null || true
 endif
 
 # Configuration
@@ -36,7 +39,7 @@ MODEL ?= checkpoints/best.pth
 EPOCHS ?= 50
 BATCH_SIZE ?= 64
 
-.PHONY: all setup build install clean train eval test help
+.PHONY: all setup build install clean distclean train eval test test-cuda test-layers test-gradient help
 
 # Default target
 all: setup build install
@@ -61,13 +64,19 @@ help:
 	@echo "  make train          - Train model (use DATA=, CONFIG=, EPOCHS=)"
 	@echo "  make eval           - Evaluate model (use DATA=, MODEL=)"
 	@echo ""
+	@echo "Testing:"
+	@echo "  make test           - Run all tests (layers, gradient, CUDA)"
+	@echo "  make test-layers    - Run layer tests only"
+	@echo "  make test-gradient  - Run gradient tests only"
+	@echo "  make test-cuda      - Run CUDA GPU tests only"
+	@echo ""
+	@echo "Cleaning:"
+	@echo "  make clean          - Clean build artifacts"
+	@echo "  make distclean      - Deep clean (also removes venv, pybind11)"
+	@echo ""
 	@echo "Examples:"
 	@echo "  make train DATA=data_1 EPOCHS=50"
 	@echo "  make eval DATA=data_1 MODEL=checkpoints/best.pth"
-	@echo ""
-	@echo "Other:"
-	@echo "  make clean          - Clean build artifacts"
-	@echo "  make test           - Run tests"
 
 # Setup virtual environment
 setup:
@@ -77,20 +86,6 @@ setup:
 ifeq ($(DETECTED_OS),Windows)
 	$(PYTHON) -m pip install --upgrade pip setuptools || echo "Pip upgrade skipped"
 	$(VENV_BIN)\pip install -r requirements.txt
-	@echo "Checking for Ninja build system..."
-	@where ninja >nul 2>&1 || (\
-		echo "Ninja not found. Attempting to install..." && \
-		(winget install --id=Ninja-build.Ninja -e --silent >nul 2>&1 && echo "Ninja installed via winget") || \
-		(where choco >nul 2>&1 && choco install ninja -y >nul 2>&1 && echo "Ninja installed via chocolatey") || \
-		(echo "Trying direct download..." && powershell -ExecutionPolicy Bypass -File install_ninja.ps1) || \
-		(echo "WARNING: Could not auto-install Ninja." && \
-		 echo "Please install manually:" && \
-		 echo "  Run: powershell -ExecutionPolicy Bypass -File install_ninja.ps1" && \
-		 echo "  Or download from: https://github.com/ninja-build/ninja/releases" && \
-		 echo "" && \
-		 echo "Continuing setup without Ninja (will use Visual Studio generator)..." ) \
-	)
-	@where ninja >nul 2>&1 && echo "Ninja build system: READY" || echo "Ninja build system: NOT FOUND (optional)"
 else
 	$(VENV_BIN)/pip install --upgrade pip setuptools
 	$(VENV_BIN)/pip install -r requirements.txt
@@ -114,14 +109,7 @@ build:
 	@echo "Building C++ backend (OS: $(DETECTED_OS))..."
 ifeq ($(DETECTED_OS),Windows)
 	@if not exist $(BUILD_DIR) $(MKDIR) $(BUILD_DIR)
-	@where ninja >nul 2>&1 && (\
-		echo "Using Ninja generator (avoids CUDA + MSBuild bugs)..." && \
-		cd $(BUILD_DIR) && cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build . --config Release -j8 \
-	) || (\
-		echo "Ninja not found, using default Visual Studio generator..." && \
-		echo "WARNING: CUDA may fail with Visual Studio due to known bug" && \
-		cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build . --config Release -j8 \
-	)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build . --config Release -j8
 else
 	@$(MKDIR) $(BUILD_DIR)
 	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build . --config Release -j8
@@ -132,22 +120,14 @@ endif
 install:
 	@echo "Installing Python package..."
 ifeq ($(DETECTED_OS),Windows)
-	@if not exist build\deepnet_backend*.pyd ( \
-		echo Error: C++ backend not built. Run 'make build' first. && exit 1 \
-	)
-	copy build\deepnet_backend*.pyd . >nul 2>&1
+	@$(COPY_PYD)
 else
-	@if [ ! -f build/deepnet_backend*.so ]; then \
-		echo "Error: C++ backend not built. Run 'make build' first."; \
-		exit 1; \
-	fi
-	cp build/deepnet_backend*.so . 2>/dev/null || true
+	@$(COPY_PYD)
 endif
 	$(PYTHON) -m pip install -e .
 	@echo "Installation complete!"
 	@echo ""
-	@echo "You're ready! Try:"
-	@echo "  make train DATA=data_1 EPOCHS=2"
+	@echo "Verify with: make test"
 
 # Train model
 train:
@@ -157,7 +137,6 @@ train:
 		--config $(CONFIG) \
 		--epochs $(EPOCHS) \
 		--batch-size $(BATCH_SIZE)
-	@echo "Training complete!"
 
 # Evaluate model
 eval:
@@ -167,12 +146,24 @@ eval:
 		--checkpoint $(MODEL) \
 		--config $(CONFIG) \
 		--batch-size $(BATCH_SIZE)
-	@echo "Evaluation complete!"
 
-# Run tests
-test:
-	@echo "Running tests..."
-	$(PYTHON) -m pytest tests/ -v || echo "No tests found"
+# Run all tests
+test: test-layers test-gradient test-cuda
+	@echo ""
+	@echo "=== All tests completed ==="
+
+# Individual test targets
+test-layers:
+	@echo "Running layer tests..."
+	$(PYTHON) scripts/test_all_layers.py
+
+test-gradient:
+	@echo "Running gradient tests..."
+	$(PYTHON) scripts/test_gradient.py
+
+test-cuda:
+	@echo "Running CUDA tests..."
+	$(PYTHON) scripts/test_cuda.py
 
 # Clean build artifacts
 clean:
@@ -180,12 +171,13 @@ clean:
 ifeq ($(DETECTED_OS),Windows)
 	@if exist $(BUILD_DIR) $(RM) $(BUILD_DIR)
 	@if exist deepnet_backend*.pyd $(RM_FILE) deepnet_backend*.pyd
-	@if exist deepnet_backend*.so $(RM_FILE) deepnet_backend*.so
+	@if exist deepnet\deepnet_backend*.pyd $(RM_FILE) deepnet\deepnet_backend*.pyd
 	@if exist deepnet.egg-info $(RM) deepnet.egg-info
 	@for /d %%i in (__pycache__) do @if exist %%i $(RM) %%i
 else
 	$(RM) $(BUILD_DIR)
 	$(RM_FILE) deepnet_backend*.so deepnet_backend*.pyd
+	$(RM_FILE) deepnet/deepnet_backend*.so deepnet/deepnet_backend*.pyd
 	$(RM) deepnet.egg-info
 	$(RM) __pycache__ deepnet/__pycache__ scripts/__pycache__ deepnet/python/__pycache__
 	$(RM) .pytest_cache

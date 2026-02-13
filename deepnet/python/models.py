@@ -17,7 +17,8 @@ if os.path.exists(utils_path):
 import deepnet_backend as backend
 from .module import (Module, Sequential, Conv2DWrapper, LinearWrapper, ReLUWrapper,
                      MaxPool2DWrapper, BatchNorm2DWrapper, BatchNorm1DWrapper,
-                     DropoutWrapper, FlattenWrapper)
+                     DropoutWrapper, FlattenWrapper, LeakyReLUWrapper,
+                     TanhWrapper, SigmoidWrapper, AvgPool2DWrapper)
 
 try:
     from metrics import count_parameters, estimate_macs_flops
@@ -95,6 +96,23 @@ def build_model_from_config(config_path, num_classes):
         
         elif layer_type == 'Flatten':
             layers.append(FlattenWrapper())
+        
+        elif layer_type == 'LeakyReLU':
+            layers.append(LeakyReLUWrapper(
+                negative_slope=layer_config.get('negative_slope', 0.01)
+            ))
+        
+        elif layer_type == 'Tanh':
+            layers.append(TanhWrapper())
+        
+        elif layer_type == 'Sigmoid':
+            layers.append(SigmoidWrapper())
+        
+        elif layer_type == 'AvgPool2D':
+            layers.append(AvgPool2DWrapper(
+                kernel_size=layer_config['kernel_size'],
+                stride=layer_config.get('stride')
+            ))
         
         else:
             raise ValueError(f"Unknown layer type: {layer_type}")
