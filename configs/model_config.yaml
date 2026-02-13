@@ -1,0 +1,139 @@
+# Advanced CNN Configuration
+# Optimized for bonus marks with modern architecture
+
+model:
+  name: "AdvancedCNN"
+  architecture:
+    # Block 1
+    - type: "Conv2D"
+      in_channels: 3
+      out_channels: 64
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    
+    - type: "BatchNorm2D"
+      num_features: 64
+    
+    - type: "ReLU"
+    
+    - type: "Conv2D"
+      in_channels: 64
+      out_channels: 64
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    
+    - type: "BatchNorm2D"
+      num_features: 64
+    
+    - type: "ReLU"
+    
+    - type: "MaxPool2D"
+      kernel_size: 2
+      stride: 2
+    
+    - type: "Dropout"
+      p: 0.25
+    
+    # Block 2
+    - type: "Conv2D"
+      in_channels: 64
+      out_channels: 128
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    
+    - type: "BatchNorm2D"
+      num_features: 128
+    
+    - type: "ReLU"
+    
+    - type: "Conv2D"
+      in_channels: 128
+      out_channels: 128
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    
+    - type: "BatchNorm2D"
+      num_features: 128
+    
+    - type: "ReLU"
+    
+    - type: "MaxPool2D"
+      kernel_size: 2
+      stride: 2
+    
+    - type: "Dropout"
+      p: 0.25
+    
+    # Block 3
+    - type: "Conv2D"
+      in_channels: 128
+      out_channels: 256
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    
+    - type: "BatchNorm2D"
+      num_features: 256
+    
+    - type: "ReLU"
+    
+    - type: "MaxPool2D"
+      kernel_size: 2
+      stride: 2
+    
+    - type: "Dropout"
+      p: 0.5
+    
+    # Classifier
+    - type: "Flatten"
+    
+    - type: "Linear"
+      in_features: 4096  # 256 * 4 * 4
+      out_features: 512
+    
+    - type: "BatchNorm1D"
+      num_features: 512
+    
+    - type: "ReLU"
+    
+    - type: "Dropout"
+      p: 0.5
+    
+    - type: "Linear"
+      in_features: 512
+      out_features: 10  # num_classes (will be auto-detected)
+
+training:
+  epochs: 100
+  batch_size: 64
+  learning_rate: 0.001
+  optimizer: "Adam"
+  betas: [0.9, 0.999]
+  weight_decay: 0.0001
+  
+  scheduler:
+    type: "CosineAnnealingLR"
+    T_max: 100
+    eta_min: 0.00001
+  
+  early_stopping:
+    enabled: true
+    patience: 15
+    min_delta: 0.001
+
+data:
+  image_size: 32
+  augmentation:
+    enabled: true
+    horizontal_flip: 0.5
+    rotation: 15
+    brightness: 0.2
+    contrast: 0.2
+
+device:
+  use_cuda: true
+  device_id: 0
