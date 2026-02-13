@@ -12,7 +12,8 @@ ifeq ($(OS),Windows_NT)
     RM_FILE := del /f /q
     PATH_SEP := \\
     # Find the .pyd file in build directory (may be in Release/ subfolder on VS)
-    COPY_PYD = (if exist build\\Release\\deepnet_backend*.pyd (copy build\\Release\\deepnet_backend*.pyd deepnet\\ >nul) else (copy build\\deepnet_backend*.pyd deepnet\\ >nul))
+    # Copy to both project root and deepnet/ so imports work from any sys.path
+    COPY_PYD = (if exist build\\Release\\deepnet_backend*.pyd (copy build\\Release\\deepnet_backend*.pyd . >nul & copy build\\Release\\deepnet_backend*.pyd deepnet\\ >nul) else (copy build\\deepnet_backend*.pyd . >nul & copy build\\deepnet_backend*.pyd deepnet\\ >nul))
 else
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Linux)
@@ -28,7 +29,7 @@ else
     RM := rm -rf
     RM_FILE := rm -f
     PATH_SEP := /
-    COPY_PYD = cp build/deepnet_backend*.so deepnet/ 2>/dev/null || true
+    COPY_PYD = cp build/deepnet_backend*.so . 2>/dev/null; cp build/deepnet_backend*.so deepnet/ 2>/dev/null || true
 endif
 
 # Configuration
