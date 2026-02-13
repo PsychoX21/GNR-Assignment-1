@@ -168,9 +168,19 @@ TensorPtr Tensor::add(const TensorPtr &other) {
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
 
-  for (size_t i = 0; i < data.size(); ++i) {
-    output->data[i] = data[i] + other->data[i];
+#ifdef USE_CUDA
+  if (is_cuda && other->is_cuda) {
+    // GPU path
+    cuda::add_cuda(data.data(), other->data.data(), output->data.data(), numel());
+  } else {
+#endif
+    // CPU path
+    for (size_t i = 0; i < data.size(); ++i) {
+      output->data[i] = data[i] + other->data[i];
+    }
+#ifdef USE_CUDA
   }
+#endif
 
   if (output->requires_grad) {
     auto grad_fn = std::make_shared<AddBackward>();
@@ -186,9 +196,19 @@ TensorPtr Tensor::mul(const TensorPtr &other) {
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
 
-  for (size_t i = 0; i < data.size(); ++i) {
-    output->data[i] = data[i] * other->data[i];
+#ifdef USE_CUDA
+  if (is_cuda && other->is_cuda) {
+    // GPU path
+    cuda::mul_cuda(data.data(), other->data.data(), output->data.data(), numel());
+  } else {
+#endif
+    // CPU path
+    for (size_t i = 0; i < data.size(); ++i) {
+      output->data[i] = data[i] * other->data[i];
+    }
+#ifdef USE_CUDA
   }
+#endif
 
   if (output->requires_grad) {
     auto grad_fn = std::make_shared<MulBackward>();
@@ -255,16 +275,25 @@ TensorPtr Tensor::matmul(const TensorPtr &other) {
   auto output =
       Tensor::zeros({M, N}, requires_grad || other->requires_grad, is_cuda);
 
-  // Simple matmul (can be optimized with BLAS or CUDA)
-  for (int i = 0; i < M; ++i) {
-    for (int j = 0; j < N; ++j) {
-      float sum = 0.0f;
-      for (int k = 0; k < K; ++k) {
-        sum += data[i * K + k] * other->data[k * N + j];
+#ifdef USE_CUDA
+  if (is_cuda && other->is_cuda) {
+    // GPU path
+    cuda::matmul_cuda(data.data(), other->data.data(), output->data.data(), M, N, K);
+  } else {
+#endif
+    // Simple matmul (can be optimized with BLAS or CUDA)
+    for (int i = 0; i < M; ++i) {
+      for (int j = 0; j < N; ++j) {
+        float sum = 0.0f;
+        for (int k = 0; k < K; ++k) {
+          sum += data[i * K + k] * other->data[k * N + j];
+        }
+        output->data[i * N + j] = sum;
       }
-      output->data[i * N + j] = sum;
     }
+#ifdef USE_CUDA
   }
+#endif
 
   if (output->requires_grad) {
     auto grad_fn = std::make_shared<MatMulBackward>();

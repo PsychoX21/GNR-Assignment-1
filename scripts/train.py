@@ -19,7 +19,7 @@ from deepnet.python.data import ImageFolderDataset, DataLoader, ensure_dataset_e
 from deepnet.python.models import build_model_from_config, calculate_model_stats, save_checkpoint
 
 
-def train_epoch(model, dataloader, criterion, optimizer, epoch):
+def train_epoch(model, dataloader, criterion, optimizer, epoch, use_cuda=False):
     """Train for one epoch"""
     model.train()
     total_loss = 0.0
@@ -39,7 +39,8 @@ def train_epoch(model, dataloader, criterion, optimizer, epoch):
         input_tensor = backend.Tensor.from_data(
             batch_images,
             [batch_size, 3, 32, 32],
-            requires_grad=False
+            requires_grad=False,
+            cuda=use_cuda
         )
         
         # Forward pass
@@ -72,7 +73,7 @@ def train_epoch(model, dataloader, criterion, optimizer, epoch):
     return avg_loss, accuracy
 
 
-def evaluate(model, dataloader, criterion):
+def evaluate(model, dataloader, criterion, use_cuda=False):
     """Evaluate model"""
     model.eval()
     total_loss = 0.0
@@ -89,7 +90,8 @@ def evaluate(model, dataloader, criterion):
         input_tensor = backend.Tensor.from_data(
             batch_images,
             [batch_size, 3, 32, 32],
-            requires_grad=False
+            requires_grad=False,
+            cuda=use_cuda
         )
         
         outputs = model(input_tensor)
@@ -177,6 +179,16 @@ def main():
     
     print(f"\nOptimizer: {optimizer_type}, LR: {training_config.get('learning_rate')}")
     
+    # Check CUDA availability
+    use_cuda = False
+    try:
+        use_cuda = backend.cuda.is_cuda_available() if hasattr(backend, 'cuda') else False
+    except:
+        use_cuda = False
+    
+    cuda_status = "enabled" if use_cuda else "disabled (CPU only)"
+    print(f"\nCUDA status: {cuda_status}")
+    
     # Training loop
     print("\n" + "=" * 70)
     print("Training Started")
@@ -187,8 +199,8 @@ def main():
     for epoch in range(1, args.epochs + 1):
         start = time.time()
         
-        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, epoch)
-        val_loss, val_acc = evaluate(model, val_loader, criterion)
+        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, epoch, use_cuda)
+        val_loss, val_acc = evaluate(model, val_loader, criterion, use_cuda)
         
         epoch_time = time.time() - start
         
