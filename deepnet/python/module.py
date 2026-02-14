@@ -307,3 +307,138 @@ class AvgPool2DWrapper(Module):
     
     def backward(self, grad):
         return self.layer.backward(grad)
+
+
+class GlobalAvgPool2DWrapper(Module):
+    """Global Average Pooling - averages each feature map to a single value.
+    Input:  [batch, channels, H, W]
+    Output: [batch, channels, 1, 1] -> flattened to [batch, channels]
+    """
+    def __init__(self):
+        super().__init__()
+        self._pool_layer = None
+        self._flatten = backend.Flatten(1, -1)
+    
+    def forward(self, x):
+        # Get spatial size dynamically
+        h = x.shape[2]
+        w = x.shape[3]
+        # Use AvgPool2D with kernel = spatial size
+        self._pool_layer = backend.AvgPool2D(h, 1)
+        out = self._pool_layer.forward(x)
+        # Flatten [batch, C, 1, 1] -> [batch, C]
+        out = self._flatten.forward(out)
+        return out
+    
+    def backward(self, grad):
+        # Unflatten grad back
+        grad = self._flatten.backward(grad)
+        return self._pool_layer.backward(grad)
+
+
+class ResidualBlockWrapper(Module):
+    """Residual block with skip connection.
+    
+    Main path:  Conv3x3(in→out, stride) → BN → ReLU → Conv3x3(out→out) → BN
+    Shortcut:   1x1 Conv(in→out, stride) → BN  (if dimensions change)
+                Identity                         (if dimensions match)
+    Output:     ReLU(main + shortcut)
+    """
+    def __init__(self, in_channels, out_channels, stride=1):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.stride = stride
+        self.need_shortcut = (stride != 1 or in_channels != out_channels)
+        
+        # Main path
+        self.conv1 = backend.Conv2D(in_channels, out_channels, 3, stride, 1, False)  # 3x3, pad=1, no bias
+        self.bn1 = backend.BatchNorm2D(out_channels)
+        self.relu1 = backend.ReLU()
+        self.conv2 = backend.Conv2D(out_channels, out_channels, 3, 1, 1, False)  # 3x3, stride=1, pad=1, no bias
+        self.bn2 = backend.BatchNorm2D(out_channels)
+        
+        # Shortcut (1x1 conv + BN if dimensions change)
+        if self.need_shortcut:
+            self.shortcut_conv = backend.Conv2D(in_channels, out_channels, 1, stride, 0, False)
+            self.shortcut_bn = backend.BatchNorm2D(out_channels)
+        
+        # Final ReLU
+        self.relu_out = backend.ReLU()
+        
+        # Collect parameters
+        self._parameters = []
+        self._parameters.extend(self.conv1.parameters())
+        self._parameters.extend(self.bn1.parameters())
+        self._parameters.extend(self.conv2.parameters())
+        self._parameters.extend(self.bn2.parameters())
+        if self.need_shortcut:
+            self._parameters.extend(self.shortcut_conv.parameters())
+            self._parameters.extend(self.shortcut_bn.parameters())
+        
+        # Cache for backward
+        self._input = None
+        self._main_out = None
+        self._shortcut_out = None
+    
+    def forward(self, x):
+        self._input = x
+        
+        # Main path: conv1 -> bn1 -> relu -> conv2 -> bn2
+        out = self.conv1.forward(x)
+        out = self.bn1.forward(out)
+        out = self.relu1.forward(out)
+        out = self.conv2.forward(out)
+        out = self.bn2.forward(out)
+        self._main_out = out
+        
+        # Shortcut path
+        if self.need_shortcut:
+            shortcut = self.shortcut_conv.forward(x)
+            shortcut = self.shortcut_bn.forward(shortcut)
+        else:
+            shortcut = x
+        self._shortcut_out = shortcut
+        
+        # Add and ReLU
+        result = out + shortcut
+        result = self.relu_out.forward(result)
+        return result
+    
+    def backward(self, grad):
+        # Backward through final ReLU
+        grad = self.relu_out.backward(grad)
+        
+        # Gradient splits into main path and shortcut path
+        main_grad = grad  # grad flows to both branches
+        shortcut_grad = grad
+        
+        # Backward through main path: bn2 -> conv2 -> relu1 -> bn1 -> conv1
+        main_grad = self.bn2.backward(main_grad)
+        main_grad = self.conv2.backward(main_grad)
+        main_grad = self.relu1.backward(main_grad)
+        main_grad = self.bn1.backward(main_grad)
+        main_grad = self.conv1.backward(main_grad)
+        
+        # Backward through shortcut
+        if self.need_shortcut:
+            shortcut_grad = self.shortcut_bn.backward(shortcut_grad)
+            shortcut_grad = self.shortcut_conv.backward(shortcut_grad)
+        
+        # Sum gradients from both paths (dL/dx = dL/dx_main + dL/dx_shortcut)
+        input_grad = main_grad + shortcut_grad
+        return input_grad
+    
+    def train(self):
+        self._training = True
+        self.bn1.train()
+        self.bn2.train()
+        if self.need_shortcut:
+            self.shortcut_bn.train()
+    
+    def eval(self):
+        self._training = False
+        self.bn1.eval()
+        self.bn2.eval()
+        if self.need_shortcut:
+            self.shortcut_bn.eval()

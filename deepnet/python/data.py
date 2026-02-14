@@ -55,12 +55,13 @@ class ImageFolderDataset:
     Automatically splits into train/val sets.
     """
     
-    def __init__(self, root_dir, image_size=32, train=True, val_split=0.2, 
+    def __init__(self, root_dir, image_size=32, channels=3, train=True, val_split=0.2, 
                  augmentation=None, seed=42):
         """
         Args:
             root_dir: Root directory containing class folders
             image_size: Resize images to this size
+            channels: Number of color channels (1=grayscale, 3=RGB)
             train: If True, load train split; if False, load val split
             val_split: Fraction of data to use for validation
             augmentation: Dict with augmentation settings
@@ -68,6 +69,7 @@ class ImageFolderDataset:
         """
         self.root_dir = Path(root_dir)
         self.image_size = image_size
+        self.channels = channels
         self.train = train
         self.val_split = val_split
         self.augmentation = augmentation or {}
@@ -107,31 +109,41 @@ class ImageFolderDataset:
         img_path, label = self.samples[idx]
         
         # Load image using OpenCV
-        img = cv2.imread(img_path)
+        if self.channels == 1:
+            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        else:
+            img = cv2.imread(img_path)
         if img is None:
             raise ValueError(f"Failed to load image: {img_path}")
         
-        # Convert BGR to RGB
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
-        # Resize to 32x32
+        # Resize
         img = cv2.resize(img, (self.image_size, self.image_size))
+        
+        # Convert to RGB if color
+        if self.channels == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
         # Apply augmentation if training
         if self.train and self.augmentation.get('enabled', False):
             img = self._augment(img)
         
         # Convert to CHW format and normalize to [0, 1]
-        # Return as flat list in CHW order: [C, H, W] flattened
         h, w = self.image_size, self.image_size
         img_list = []
         
-        for c in range(3):  # RGB channels
+        if self.channels == 1:
+            # Grayscale: single channel
             for i in range(h):
                 for j in range(w):
-                    img_list.append(float(img[i, j, c]) / 255.0)
+                    img_list.append(float(img[i, j]) / 255.0)
+        else:
+            # RGB: 3 channels
+            for c in range(3):
+                for i in range(h):
+                    for j in range(w):
+                        img_list.append(float(img[i, j, c]) / 255.0)
         
-        return img_list, label  # Returns list[float] (3*32*32=3072), int
+        return img_list, label
     
     def _augment(self, img):
         """Apply data augmentation - OpenCV only"""

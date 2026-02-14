@@ -19,7 +19,7 @@ from deepnet.python.data import ImageFolderDataset, DataLoader, ensure_dataset_e
 from deepnet.python.models import build_model_from_config, calculate_model_stats, save_checkpoint
 
 
-def train_epoch(model, dataloader, criterion, optimizer, epoch, use_cuda=False):
+def train_epoch(model, dataloader, criterion, optimizer, epoch, use_cuda=False, channels=3, image_size=32):
     """Train for one epoch"""
     model.train()
     total_loss = 0.0
@@ -34,11 +34,11 @@ def train_epoch(model, dataloader, criterion, optimizer, epoch, use_cuda=False):
         for img in images:  # Each img is list of 3072 floats (3*32*32)
             batch_images.extend(img)
         
-        # Create tensor: [batch_size, 3, 32, 32]
+        # Create tensor: [batch_size, channels, image_size, image_size]
         batch_size = len(images)
         input_tensor = backend.Tensor.from_data(
             batch_images,
-            [batch_size, 3, 32, 32],
+            [batch_size, channels, image_size, image_size],
             requires_grad=False,
             cuda=use_cuda
         )
@@ -79,7 +79,7 @@ def train_epoch(model, dataloader, criterion, optimizer, epoch, use_cuda=False):
     return avg_loss, accuracy
 
 
-def evaluate(model, dataloader, criterion, use_cuda=False):
+def evaluate(model, dataloader, criterion, use_cuda=False, channels=3, image_size=32):
     """Evaluate model"""
     model.eval()
     total_loss = 0.0
@@ -95,7 +95,7 @@ def evaluate(model, dataloader, criterion, use_cuda=False):
         batch_size = len(images)
         input_tensor = backend.Tensor.from_data(
             batch_images,
-            [batch_size, 3, 32, 32],
+            [batch_size, channels, image_size, image_size],
             requires_grad=False,
             cuda=use_cuda
         )
@@ -124,7 +124,7 @@ def main():
     parser.add_argument('--config', type=str, required=True, help='Path to model configuration YAML file')
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
     parser.add_argument('--batch-size', type=int, default=64, help='Batch size')
-    parser.add_argument('--val-split', type=float, default=0.2, help='Validation split ratio')
+    parser.add_argument('--val-split', type=float, default=0.1, help='Validation split ratio')
     parser.add_argument('--checkpoint-dir', type=str, default='checkpoints', help='Directory to save checkpoints')
     
     args = parser.parse_args()
@@ -141,15 +141,27 @@ def main():
     # Extract dataset name for checkpoint naming
     dataset_name = Path(args.dataset).name  # e.g., 'data_1' from 'datasets/data_1'
     
+    # Build model from config (do this first to get data settings)
+    print(f"\nBuilding model from: {args.config}")
+    model, config = build_model_from_config(args.config, num_classes=0)  # temp, need num_classes
+    
+    # Read data settings from config
+    data_config = config.get('data', {})
+    image_size = data_config.get('image_size', 32)
+    channels = data_config.get('channels', 3)
+    augmentation = data_config.get('augmentation', {})
+    
+    print(f"Image size: {image_size}x{image_size}, Channels: {channels}")
+    
     # Load datasets with train/val split
     print(f"\nLoading dataset: {args.dataset} ({dataset_name})")
     dataset_start = time.time()
     
-    train_dataset = ImageFolderDataset(args.dataset, image_size=32, train=True, 
-                                       val_split=args.val_split, 
-                                       augmentation={'enabled': True})
-    val_dataset = ImageFolderDataset(args.dataset, image_size=32, train=False, 
-                                     val_split=args.val_split)
+    train_dataset = ImageFolderDataset(args.dataset, image_size=image_size, channels=channels,
+                                       train=True, val_split=args.val_split, 
+                                       augmentation=augmentation)
+    val_dataset = ImageFolderDataset(args.dataset, image_size=image_size, channels=channels,
+                                     train=False, val_split=args.val_split)
     
     dataset_load_time = time.time() - dataset_start
     print(f"Dataset loading time: {dataset_load_time:.2f} seconds")
@@ -162,11 +174,10 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     
-    # Build model from config
-    print(f"\nBuilding model from: {args.config}")
+    # Rebuild model with actual num_classes
     model, config = build_model_from_config(args.config, num_classes)
     
-    stats = calculate_model_stats(model, [args.batch_size, 3, 32, 32])
+    stats = calculate_model_stats(model, [args.batch_size, channels, image_size, image_size])
     print(f"\nModel Statistics:")
     print(f"  Parameters: {stats['parameters']:,}")
     print(f"  MACs: {stats['macs']:,}")
@@ -208,8 +219,8 @@ def main():
     for epoch in range(1, args.epochs + 1):
         start = time.time()
         
-        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, epoch, use_cuda)
-        val_loss, val_acc = evaluate(model, val_loader, criterion, use_cuda)
+        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, epoch, use_cuda, channels, image_size)
+        val_loss, val_acc = evaluate(model, val_loader, criterion, use_cuda, channels, image_size)
         
         epoch_time = time.time() - start
         

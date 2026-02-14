@@ -18,7 +18,8 @@ import deepnet_backend as backend
 from .module import (Module, Sequential, Conv2DWrapper, LinearWrapper, ReLUWrapper,
                      MaxPool2DWrapper, BatchNorm2DWrapper, BatchNorm1DWrapper,
                      DropoutWrapper, FlattenWrapper, LeakyReLUWrapper,
-                     TanhWrapper, SigmoidWrapper, AvgPool2DWrapper)
+                     TanhWrapper, SigmoidWrapper, AvgPool2DWrapper,
+                     GlobalAvgPool2DWrapper, ResidualBlockWrapper)
 
 try:
     from metrics import count_parameters, estimate_macs_flops
@@ -112,6 +113,16 @@ def build_model_from_config(config_path, num_classes):
             layers.append(AvgPool2DWrapper(
                 kernel_size=layer_config['kernel_size'],
                 stride=layer_config.get('stride')
+            ))
+        
+        elif layer_type == 'GlobalAveragePooling2D':
+            layers.append(GlobalAvgPool2DWrapper())
+        
+        elif layer_type == 'ResidualBlock':
+            layers.append(ResidualBlockWrapper(
+                in_channels=layer_config['in_channels'],
+                out_channels=layer_config['out_channels'],
+                stride=layer_config.get('stride', 1)
             ))
         
         else:
