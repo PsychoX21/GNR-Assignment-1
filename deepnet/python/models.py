@@ -57,7 +57,8 @@ def build_model_from_config(config_path, num_classes):
                 out_channels=layer_config['out_channels'],
                 kernel_size=layer_config['kernel_size'],
                 stride=layer_config.get('stride', 1),
-                padding=layer_config.get('padding', 0)
+                padding=layer_config.get('padding', 0),
+                bias=layer_config.get('bias', True)
             ))
         
         elif layer_type == 'Linear':
@@ -68,7 +69,8 @@ def build_model_from_config(config_path, num_classes):
             
             layers.append(LinearWrapper(
                 in_features=layer_config['in_features'],
-                out_features=out_features
+                out_features=out_features,
+                bias=layer_config.get('bias', True)
             ))
         
         elif layer_type == 'ReLU':
@@ -82,12 +84,16 @@ def build_model_from_config(config_path, num_classes):
         
         elif layer_type == 'BatchNorm2D':
             layers.append(BatchNorm2DWrapper(
-                num_features=layer_config['num_features']
+                num_features=layer_config['num_features'],
+                eps=layer_config.get('eps', 1e-5),
+                momentum=layer_config.get('momentum', 0.1)
             ))
         
         elif layer_type == 'BatchNorm1D':
             layers.append(BatchNorm1DWrapper(
-                num_features=layer_config['num_features']
+                num_features=layer_config['num_features'],
+                eps=layer_config.get('eps', 1e-5),
+                momentum=layer_config.get('momentum', 0.1)
             ))
         
         elif layer_type == 'Dropout':
