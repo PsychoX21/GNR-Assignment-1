@@ -61,8 +61,8 @@ def build_model_from_config(config_path, num_classes):
         
         elif layer_type == 'Linear':
             out_features = layer_config['out_features']
-            # Auto-detect if this is the final layer
-            if out_features == 10:  # Placeholder for num_classes
+            # Support "num_classes" string placeholder or legacy integer 10
+            if out_features == "num_classes" or out_features == 10:
                 out_features = num_classes
             
             layers.append(LinearWrapper(

@@ -45,7 +45,8 @@ make build install
 make test
 
 # 5. Train
-make train DATA=data_1 EPOCHS=50
+make train DATA=data_1 CONFIG=configs/mnist_config.yaml EPOCHS=30
+make train DATA=data_2 CONFIG=configs/cifar100_config.yaml EPOCHS=50
 ```
 
 **One-command build** (after activating venv):
@@ -74,8 +75,14 @@ make    # Does: setup + build + install
 
 **Examples:**
 ```bash
-make train DATA=data_1 CONFIG=configs/model_config.yaml EPOCHS=50
-make eval DATA=data_1 MODEL=checkpoints/best.pth
+# MNIST (10 digits)
+make train DATA=data_1 CONFIG=configs/mnist_config.yaml EPOCHS=30
+make eval DATA=data_1 MODEL=checkpoints/best_data_1.pth
+
+# CIFAR-100 (100 classes)
+make train DATA=data_2 CONFIG=configs/cifar100_config.yaml EPOCHS=50
+make eval DATA=data_2 MODEL=checkpoints/best_data_2.pth CONFIG=configs/cifar100_config.yaml
+
 make test-cuda  # Verify GPU acceleration
 ```
 
@@ -129,9 +136,11 @@ GNR-Assignment-1/
 │   └── test_cuda.py                # CUDA GPU tests
 │
 ├── configs/
-│   ├── model_config.yaml           # Default CNN architecture
-│   ├── model_config_fast.yaml      # Lightweight architecture
-│   └── model_config_simple.yaml    # Minimal architecture
+│   ├── mnist_config.yaml           # Optimized for MNIST/data_1 (10 classes)
+│   ├── cifar100_config.yaml        # Optimized for CIFAR-100/data_2 (100 classes)
+│   ├── model_config.yaml           # Heavy CNN (for reference)
+│   ├── model_config_fast.yaml      # Medium CNN (for reference)
+│   └── model_config_simple.yaml    # Minimal LeNet
 │
 ├── utils/
 │   ├── metrics.py                  # Parameters, MACs, FLOPs calculation
@@ -147,7 +156,11 @@ GNR-Assignment-1/
 ## Training
 
 ```bash
-python scripts/train.py --dataset datasets/data_1 --config configs/model_config.yaml --epochs 50 --batch-size 64
+# MNIST (data_1) — ~5-10 min/epoch, target 97%+
+python scripts/train.py --dataset datasets/data_1 --config configs/mnist_config.yaml --epochs 30 --batch-size 128
+
+# CIFAR-100 (data_2) — ~10-15 min/epoch, target 35-45%
+python scripts/train.py --dataset datasets/data_2 --config configs/cifar100_config.yaml --epochs 50 --batch-size 64
 ```
 
 | Argument | Default | Description |
@@ -160,8 +173,8 @@ python scripts/train.py --dataset datasets/data_1 --config configs/model_config.
 | `--checkpoint-dir` | `checkpoints` | Where to save model checkpoints |
 
 **Outputs:**
-- `checkpoints/best.pth` — Best validation accuracy model
-- `checkpoints/epoch_N.pth` — Periodic checkpoints (every 10 epochs)
+- `checkpoints/best_data_1.pth` — Best validation accuracy model (per dataset)
+- `checkpoints/data_1_epoch_10.pth` — Periodic checkpoints (every 10 epochs)
 - Console: per-epoch train/val loss, accuracy, timing
 
 **CUDA:** If an NVIDIA GPU is detected, tensor operations automatically dispatch to GPU kernels. No code changes needed — the script prints `CUDA status: enabled` at startup.
@@ -171,7 +184,8 @@ python scripts/train.py --dataset datasets/data_1 --config configs/model_config.
 ## Evaluation
 
 ```bash
-python scripts/evaluate.py --dataset datasets/data_1 --checkpoint checkpoints/best.pth
+python scripts/evaluate.py --dataset datasets/data_1 --checkpoint checkpoints/best_data_1.pth
+python scripts/evaluate.py --dataset datasets/data_2 --checkpoint checkpoints/best_data_2.pth --config configs/cifar100_config.yaml
 ```
 
 Prints overall accuracy, loss, and per-class accuracy breakdown.
@@ -180,50 +194,62 @@ Prints overall accuracy, loss, and per-class accuracy breakdown.
 
 ## Model Configuration
 
-Models are defined in YAML files (see `configs/`):
+Models are defined in YAML config files. Two optimized configs are provided:
+
+| Config | Architecture | Best For | Target Accuracy |
+|---|---|---|---|
+| `mnist_config.yaml` | LeNet (16→32), 2 conv blocks | data_1 (MNIST, 10 classes) | 97%+ |
+| `cifar100_config.yaml` | 3-block CNN (32→64→128) | data_2 (CIFAR-100, 100 classes) | 35-45% |
+
+The final layer uses `out_features: "num_classes"` which is automatically replaced based on the dataset.
+
+### Config Format
 
 ```yaml
 model:
-  name: AdvancedCNN
-  layers:
-    - Conv2D: {in_channels: 3, out_channels: 64, kernel_size: 3, padding: 1}
-    - BatchNorm2D: {num_features: 64}
-    - ReLU
-    - MaxPool2D: {kernel_size: 2}
-    - Dropout: {p: 0.25}
+  architecture:
+    - type: "Conv2D"
+      in_channels: 3
+      out_channels: 32
+      kernel_size: 3
+      padding: 1
+    - type: "BatchNorm2D"
+      num_features: 32
+    - type: "ReLU"
+    - type: "MaxPool2D"
+      kernel_size: 2
     # ... more layers
-    - Flatten
-    - Linear: {in_features: 6272, out_features: 512}
-    - ReLU
-    - Linear: {in_features: 512, out_features: num_classes}
+    - type: "Linear"
+      in_features: 128
+      out_features: "num_classes"  # Auto-replaced
 
 training:
-  optimizer: Adam        # SGD or Adam
+  optimizer: "Adam"       # Adam or SGD
   learning_rate: 0.001
   weight_decay: 0.0001
-
-augmentation:
-  enabled: true
-  flip: true
-  rotate: true
-  brightness: true
-  contrast: true
+  scheduler:
+    type: "StepLR"
+    step_size: 15
+    gamma: 0.5
 ```
-
-The `num_classes` placeholder is automatically replaced based on the dataset (10 or 100).
 
 ---
 
 ## Dataset Format
 
+| Dataset | Contents | Classes | Image Size |
+|---|---|---|---|
+| `data_1` | MNIST handwritten digits | 10 | 28×28 (loaded as 32×32 RGB) |
+| `data_2` | CIFAR-100 natural images | 100 | 32×32 RGB |
+
 Place `.zip` files in `datasets/`. They are auto-extracted on first training run.
 
 ```
 datasets/data_1/
-├── class_0/
+├── 0/
 │   ├── img001.png
 │   └── ...
-├── class_1/
+├── 1/
 └── ...
 ```
 

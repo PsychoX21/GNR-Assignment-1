@@ -35,8 +35,8 @@ endif
 # Configuration
 BUILD_DIR := build
 DATA ?= data_1
-CONFIG ?= configs/model_config.yaml
-MODEL ?= checkpoints/best.pth
+CONFIG ?= configs/mnist_config.yaml
+MODEL ?= checkpoints/best_$(DATA).pth
 EPOCHS ?= 50
 BATCH_SIZE ?= 64
 

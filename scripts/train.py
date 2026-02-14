@@ -138,8 +138,11 @@ def main():
     print("DeepNet Training")
     print("=" * 70)
     
+    # Extract dataset name for checkpoint naming
+    dataset_name = Path(args.dataset).name  # e.g., 'data_1' from 'datasets/data_1'
+    
     # Load datasets with train/val split
-    print(f"\nLoading dataset: {args.dataset}")
+    print(f"\nLoading dataset: {args.dataset} ({dataset_name})")
     dataset_start = time.time()
     
     train_dataset = ImageFolderDataset(args.dataset, image_size=32, train=True, 
@@ -217,15 +220,16 @@ def main():
         print(f"Time: {epoch_time:.2f}s")
         print(f"{'='*70}\n")
         
-        # Save best model
+        # Save best model (named by dataset)
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            save_checkpoint(model, optimizer, epoch, val_loss, 'checkpoints/best.pth')
-            print(f"[BEST] Saved best model (Val Acc: {best_val_acc:.2f}%)")
+            best_path = f'checkpoints/best_{dataset_name}.pth'
+            save_checkpoint(model, optimizer, epoch, val_loss, best_path)
+            print(f"[BEST] Saved best model -> {best_path} (Val Acc: {best_val_acc:.2f}%)")
         
         # Save periodic checkpoints
         if epoch % 10 == 0:
-            save_checkpoint(model, optimizer, epoch, val_loss, f'checkpoints/epoch_{epoch}.pth')
+            save_checkpoint(model, optimizer, epoch, val_loss, f'checkpoints/{dataset_name}_epoch_{epoch}.pth')
     
     print(f"\n{'='*70}")
     print("Training Complete!")

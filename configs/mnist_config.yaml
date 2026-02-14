@@ -1,0 +1,79 @@
+# MNIST (data_1) Configuration
+# LeNet-style lightweight CNN for fast training with naive convolutions
+# Target: 97%+ accuracy, ~5-10 min/epoch
+
+model:
+  name: "MNIST_LeNet"
+  architecture:
+    # Block 1: 3 -> 16
+    - type: "Conv2D"
+      in_channels: 3
+      out_channels: 16
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    
+    - type: "BatchNorm2D"
+      num_features: 16
+    
+    - type: "ReLU"
+    
+    - type: "MaxPool2D"
+      kernel_size: 2
+      stride: 2
+    # Now 16x16
+    
+    # Block 2: 16 -> 32
+    - type: "Conv2D"
+      in_channels: 16
+      out_channels: 32
+      kernel_size: 3
+      stride: 1
+      padding: 1
+    
+    - type: "BatchNorm2D"
+      num_features: 32
+    
+    - type: "ReLU"
+    
+    - type: "MaxPool2D"
+      kernel_size: 2
+      stride: 2
+    # Now 8x8
+    
+    # Classifier
+    - type: "Flatten"
+    
+    - type: "Linear"
+      in_features: 2048  # 32 * 8 * 8
+      out_features: 128
+    
+    - type: "ReLU"
+    
+    - type: "Dropout"
+      p: 0.3
+    
+    - type: "Linear"
+      in_features: 128
+      out_features: "num_classes"
+
+training:
+  epochs: 30
+  batch_size: 128
+  learning_rate: 0.003
+  optimizer: "Adam"
+  weight_decay: 0.0001
+  
+  scheduler:
+    type: "StepLR"
+    step_size: 10
+    gamma: 0.5
+
+data:
+  image_size: 32
+  augmentation:
+    enabled: false  # MNIST doesn't need augmentation
+
+device:
+  use_cuda: true
+  device_id: 0
