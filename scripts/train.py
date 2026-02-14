@@ -208,18 +208,21 @@ def main():
     scheduler = None
     scheduler_config = training_config.get('scheduler', {})
     scheduler_type = scheduler_config.get('type', None)
+    initial_lr = training_config.get('learning_rate', 0.01)
+    
     if scheduler_type == 'StepLR':
-        scheduler = backend.StepLR(optimizer,
+        # C++ StepLR takes (lr, step_size, gamma) - doesn't modify optimizer directly
+        scheduler = backend.StepLR(initial_lr,
                                    step_size=scheduler_config.get('step_size', 10),
                                    gamma=scheduler_config.get('gamma', 0.1))
         print(f"Scheduler: StepLR (step={scheduler_config.get('step_size')}, gamma={scheduler_config.get('gamma')})")
     elif scheduler_type == 'CosineAnnealingLR':
-        scheduler = backend.CosineAnnealingLR(optimizer,
+        scheduler = backend.CosineAnnealingLR(initial_lr,
                                               T_max=scheduler_config.get('T_max', 50),
                                               eta_min=scheduler_config.get('eta_min', 0.0))
         print(f"Scheduler: CosineAnnealingLR (T_max={scheduler_config.get('T_max')}, eta_min={scheduler_config.get('eta_min')})")
     elif scheduler_type == 'ExponentialLR':
-        scheduler = backend.ExponentialLR(optimizer,
+        scheduler = backend.ExponentialLR(initial_lr,
                                           gamma=scheduler_config.get('gamma', 0.95))
         print(f"Scheduler: ExponentialLR (gamma={scheduler_config.get('gamma')})")
     else:
@@ -252,7 +255,9 @@ def main():
         
         # Step scheduler
         if scheduler is not None:
-            scheduler.step()
+            new_lr = scheduler.step()
+            optimizer.set_lr(new_lr)
+            # print(f"Adjusted LR to {new_lr:.6f}")
         
         print(f"\n{'='*70}")
         print(f"Epoch {epoch}/{args.epochs}")

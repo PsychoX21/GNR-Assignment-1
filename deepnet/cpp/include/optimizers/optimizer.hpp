@@ -14,6 +14,9 @@ public:
   virtual void step() = 0;
   virtual void zero_grad();
 
+  virtual void set_lr(float lr) = 0;
+  virtual float get_lr() = 0;
+
   void add_parameters(const std::vector<TensorPtr> &params);
 
 protected:
@@ -27,6 +30,8 @@ public:
       float momentum = 0.0f, float weight_decay = 0.0f, bool nesterov = false);
 
   void step() override;
+  void set_lr(float lr) override { this->lr = lr; }
+  float get_lr() override { return lr; }
 
 private:
   float lr, momentum, weight_decay;
@@ -42,6 +47,8 @@ public:
        float weight_decay = 0.0f);
 
   void step() override;
+  void set_lr(float lr) override { this->lr = lr; }
+  float get_lr() override { return lr; }
 
 private:
   float lr, beta1, beta2, eps, weight_decay;

@@ -183,7 +183,9 @@ PYBIND11_MODULE(deepnet_backend, m) {
   py::class_<Optimizer, std::shared_ptr<Optimizer>>(m, "Optimizer")
       .def("step", &Optimizer::step)
       .def("zero_grad", &Optimizer::zero_grad)
-      .def("add_parameters", &Optimizer::add_parameters);
+      .def("add_parameters", &Optimizer::add_parameters)
+      .def("set_lr", &Optimizer::set_lr)
+      .def("get_lr", &Optimizer::get_lr);
 
   py::class_<SGD, Optimizer, std::shared_ptr<SGD>>(m, "SGD")
       .def(
@@ -191,7 +193,9 @@ PYBIND11_MODULE(deepnet_backend, m) {
           py::arg("params"), py::arg("lr") = 0.01f, py::arg("momentum") = 0.0f,
           py::arg("weight_decay") = 0.0f, py::arg("nesterov") = false)
       .def("step", &SGD::step)
-      .def("zero_grad", &SGD::zero_grad);
+      .def("zero_grad", &SGD::zero_grad)
+      .def("set_lr", &SGD::set_lr)
+      .def("get_lr", &SGD::get_lr);
 
   py::class_<Adam, Optimizer, std::shared_ptr<Adam>>(m, "Adam")
       .def(py::init<const std::vector<TensorPtr> &, float, float, float, float,
@@ -200,7 +204,9 @@ PYBIND11_MODULE(deepnet_backend, m) {
            py::arg("beta2") = 0.999f, py::arg("eps") = 1e-8f,
            py::arg("weight_decay") = 0.0f)
       .def("step", &Adam::step)
-      .def("zero_grad", &Adam::zero_grad);
+      .def("zero_grad", &Adam::zero_grad)
+      .def("set_lr", &Adam::set_lr)
+      .def("get_lr", &Adam::get_lr);
 
   // Loss functions
   py::class_<CrossEntropyLoss>(m, "CrossEntropyLoss")
