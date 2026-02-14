@@ -123,7 +123,7 @@ def main():
     parser.add_argument('--dataset', type=str, required=True, help='Path to dataset directory')
     parser.add_argument('--config', type=str, required=True, help='Path to model configuration YAML file')
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
-    parser.add_argument('--batch-size', type=int, default=64, help='Batch size')
+    parser.add_argument('--batch-size', type=int, default=None, help='Batch size (default: from config)')
     parser.add_argument('--val-split', type=float, default=0.1, help='Validation split ratio')
     parser.add_argument('--checkpoint-dir', type=str, default='checkpoints', help='Directory to save checkpoints')
     
@@ -147,11 +147,15 @@ def main():
     
     # Read data settings from config
     data_config = config.get('data', {})
+    training_config = config.get('training', {})
     image_size = data_config.get('image_size', 32)
     channels = data_config.get('channels', 3)
     augmentation = data_config.get('augmentation', {})
     
-    print(f"Image size: {image_size}x{image_size}, Channels: {channels}")
+    # Batch size: CLI overrides config, config overrides default (64)
+    batch_size = args.batch_size or training_config.get('batch_size', 64)
+    
+    print(f"Image size: {image_size}x{image_size}, Channels: {channels}, Batch size: {batch_size}")
     
     # Load datasets with train/val split
     print(f"\nLoading dataset: {args.dataset} ({dataset_name})")
@@ -171,13 +175,13 @@ def main():
     print(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
     
     # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
     # Rebuild model with actual num_classes
     model, config = build_model_from_config(args.config, num_classes)
     
-    stats = calculate_model_stats(model, [args.batch_size, channels, image_size, image_size])
+    stats = calculate_model_stats(model, [batch_size, channels, image_size, image_size])
     print(f"\nModel Statistics:")
     print(f"  Parameters: {stats['parameters']:,}")
     print(f"  MACs: {stats['macs']:,}")
@@ -195,9 +199,31 @@ def main():
                                 momentum=training_config.get('momentum', 0.9),
                                 weight_decay=training_config.get('weight_decay', 0.0001))
     else:
-        optimizer = backend.Adam(params, lr=training_config.get('learning_rate', 0.001))
+        optimizer = backend.Adam(params, lr=training_config.get('learning_rate', 0.001),
+                                  weight_decay=training_config.get('weight_decay', 0.0))
     
     print(f"\nOptimizer: {optimizer_type}, LR: {training_config.get('learning_rate')}")
+    
+    # Create scheduler if configured
+    scheduler = None
+    scheduler_config = training_config.get('scheduler', {})
+    scheduler_type = scheduler_config.get('type', None)
+    if scheduler_type == 'StepLR':
+        scheduler = backend.StepLR(optimizer,
+                                   step_size=scheduler_config.get('step_size', 10),
+                                   gamma=scheduler_config.get('gamma', 0.1))
+        print(f"Scheduler: StepLR (step={scheduler_config.get('step_size')}, gamma={scheduler_config.get('gamma')})")
+    elif scheduler_type == 'CosineAnnealingLR':
+        scheduler = backend.CosineAnnealingLR(optimizer,
+                                              T_max=scheduler_config.get('T_max', 50),
+                                              eta_min=scheduler_config.get('eta_min', 0.0))
+        print(f"Scheduler: CosineAnnealingLR (T_max={scheduler_config.get('T_max')}, eta_min={scheduler_config.get('eta_min')})")
+    elif scheduler_type == 'ExponentialLR':
+        scheduler = backend.ExponentialLR(optimizer,
+                                          gamma=scheduler_config.get('gamma', 0.95))
+        print(f"Scheduler: ExponentialLR (gamma={scheduler_config.get('gamma')})")
+    else:
+        print("Scheduler: None")
     
     # Check CUDA availability
     use_cuda = False
@@ -223,6 +249,10 @@ def main():
         val_loss, val_acc = evaluate(model, val_loader, criterion, use_cuda, channels, image_size)
         
         epoch_time = time.time() - start
+        
+        # Step scheduler
+        if scheduler is not None:
+            scheduler.step()
         
         print(f"\n{'='*70}")
         print(f"Epoch {epoch}/{args.epochs}")

@@ -38,7 +38,6 @@ DATA ?= data_1
 CONFIG ?= configs/mnist_config.yaml
 MODEL ?= checkpoints/best_$(DATA).pth
 EPOCHS ?= 50
-BATCH_SIZE ?= 64
 
 .PHONY: all setup build install clean distclean train eval test test-cuda test-layers test-gradient help
 
@@ -136,8 +135,7 @@ train:
 	$(PYTHON) scripts/train.py \
 		--dataset datasets/$(DATA) \
 		--config $(CONFIG) \
-		--epochs $(EPOCHS) \
-		--batch-size $(BATCH_SIZE)
+		--epochs $(EPOCHS)
 
 # Evaluate model
 eval:
@@ -145,8 +143,7 @@ eval:
 	$(PYTHON) scripts/evaluate.py \
 		--dataset datasets/$(DATA) \
 		--checkpoint $(MODEL) \
-		--config $(CONFIG) \
-		--batch-size $(BATCH_SIZE)
+		--config $(CONFIG)
 
 # Run all tests
 test: test-layers test-gradient test-cuda
