@@ -9,6 +9,9 @@ import os
 import time
 import numpy as np
 
+SEED = 42
+np.random.seed(SEED)
+
 # Add project root and deepnet to path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, project_root)
