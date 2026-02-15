@@ -46,19 +46,7 @@ make build install
 make test
 ```
 
-### 2. Run Training
-```bash
-# Grader: Provide dataset path and config path
-python scripts/train.py --dataset datasets/data_1 --config configs/mnist.yaml
-```
-
-### 3. Run Evaluation (Standalone)
-```bash
-# Grader: Provide dataset path and weight path (no config needed)
-python scripts/evaluate.py --dataset datasets/data_1 --checkpoint checkpoints/best_data_1.pth
-```
-
-**Examples:**
+### 2. Run Training and Evaluation
 ```bash
 # MNIST (10 digits)
 make train DATA=data_1 CONFIG=configs/mnist.yaml

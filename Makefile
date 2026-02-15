@@ -35,7 +35,7 @@ endif
 # Configuration
 BUILD_DIR := build
 DATA ?= data_1
-CONFIG ?= configs/mnist_config.yaml
+CONFIG ?= configs/mnist.yaml
 MODEL ?= checkpoints/best_$(DATA).pth
 EPOCHS ?= 50
 VAL_SPLIT ?= 1.0
@@ -143,8 +143,8 @@ eval:
 	$(PYTHON) scripts/evaluate.py \
 		--dataset datasets/$(DATA) \
 		--checkpoint $(MODEL) \
-		--config $(CONFIG) \
 		--val-split $(VAL_SPLIT)
+
 
 # Run all tests
 test: test-layers test-gradient test-cuda test-cuda-ops test-device-ops test-gpu-integrity test-determinism

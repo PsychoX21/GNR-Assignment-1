@@ -82,7 +82,10 @@ class ImageFolderDataset:
                 if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
                     all_samples.append((str(img_path), class_idx))
 
-        random.shuffle(all_samples)
+        # Use a local random instance to ensure the shuffle is identical
+        # for both train=True and train=False splits given the same seed.
+        rng = random.Random(seed)
+        rng.shuffle(all_samples)
 
         split_idx = int(len(all_samples) * (1 - val_split))
 
