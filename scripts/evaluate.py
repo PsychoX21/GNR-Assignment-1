@@ -36,7 +36,11 @@ def evaluate(model, dataloader, criterion, num_classes, use_cuda=False, channels
     class_correct = [0] * num_classes
     class_total = [0] * num_classes
     
-    for images, labels in dataloader:
+    from tqdm import tqdm
+    progress_bar = tqdm(dataloader, desc="Evaluating", unit="batch")
+    
+    for images, labels in progress_bar:
+        # Update description with current accuracy/loss if desired, or just show progress
         # Convert to tensor
         batch_images = flatten_batch(images)
         
@@ -89,7 +93,7 @@ def main():
     parser.add_argument('--dataset', type=str, required=True, help='Path to dataset directory')
     parser.add_argument('--checkpoint', type=str, required=True, help='Path to model checkpoint')
     parser.add_argument('--config', type=str, help='Path to model config YAML (optional, will try to load from checkpoint if not provided)')
-    parser.add_argument('--batch-size', type=int, default=64, help='Batch size')
+    parser.add_argument('--batch-size', type=int, default=None, help='Batch size (default: use config value)')
     parser.add_argument('--val-split', type=float, default=1.0, help='Fraction of data to use for evaluation (default 1.0 for full test set)')
     
     args = parser.parse_args()
@@ -122,8 +126,14 @@ def main():
         print("Successfully loaded model architecture from checkpoint.")
 
     data_config = config.get('data', {})
+    training_config = config.get('training', {})
     image_size = data_config.get('image_size', 32)
     channels = data_config.get('channels', 3)
+    
+    # Use config batch size if not override
+    config_batch_size = training_config.get('batch_size', 64)
+    batch_size = args.batch_size if args.batch_size is not None else config_batch_size
+    print(f"Batch size: {batch_size}")
 
     # 2. Load dataset with correct image properties
     print(f"\nLoading dataset: {args.dataset}")
@@ -139,11 +149,11 @@ def main():
     print(f"Number of classes: {num_classes}")
     print(f"Test samples: {len(dataset)}")
     
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     
     # 3. Build model
     model, built_config = build_model_from_config(config, num_classes)
-
+    
     # Detect and use CUDA if available
     try:
         use_cuda = backend.is_cuda_available()
@@ -157,7 +167,7 @@ def main():
     
     # Calculate and print model stats
     stats = calculate_model_stats(
-        model, [args.batch_size, channels, image_size, image_size]
+        model, [batch_size, channels, image_size, image_size]
     )
     
     print(f"\nModel Statistics:")
