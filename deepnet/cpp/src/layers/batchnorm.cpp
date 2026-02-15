@@ -236,7 +236,11 @@ TensorPtr BatchNorm2D::backward(const TensorPtr &grad_output) {
   return grad_input;
 }
 
-std::vector<TensorPtr> BatchNorm2D::parameters() { return {gamma, beta}; }
+std::vector<TensorPtr> BatchNorm2D::parameters() {
+  // Return running stats so they can be moved to CUDA recursively
+  // They are not trainable (requires_grad=False), so optimizer will skip them if checked properly
+  return {gamma, beta, running_mean, running_var};
+}
 
 // BatchNorm1D Implementation
 BatchNorm1D::BatchNorm1D(int num_features, float eps, float momentum)
@@ -423,6 +427,8 @@ TensorPtr BatchNorm1D::backward(const TensorPtr &grad_output) {
   return grad_input;
 }
 
-std::vector<TensorPtr> BatchNorm1D::parameters() { return {gamma, beta}; }
+std::vector<TensorPtr> BatchNorm1D::parameters() {
+  return {gamma, beta, running_mean, running_var};
+}
 
 } // namespace deepnet

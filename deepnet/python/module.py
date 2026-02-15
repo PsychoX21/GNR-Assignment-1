@@ -66,6 +66,35 @@ class Module:
             elif hasattr(module, 'eval'):
                 module.eval()
     
+    
+    def cuda(self):
+        """Move all parameters to CUDA"""
+        for param in self.parameters():
+            if hasattr(param, 'cuda'):
+                param.cuda()
+        
+        # Recursively call cuda() on children that are Modules
+        for module in self._modules.values():
+            if isinstance(module, Module):
+                module.cuda()
+            elif hasattr(module, 'cuda'):
+                module.cuda()
+        return self
+
+    def cpu(self):
+        """Move all parameters to CPU"""
+        for param in self.parameters():
+            if hasattr(param, 'cpu'):
+                param.cpu()
+        
+        # Recursively call cpu() on children that are Modules
+        for module in self._modules.values():
+            if isinstance(module, Module):
+                module.cpu()
+            elif hasattr(module, 'cpu'):
+                module.cpu()
+        return self
+
     def zero_grad(self):
         """Zero all parameter gradients"""
         for param in self.parameters():

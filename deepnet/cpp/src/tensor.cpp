@@ -507,7 +507,7 @@ TensorPtr Tensor::col2im(const std::vector<int> &output_shape, int kernel_size,
   if (is_cuda) {
       cuda::col2im_cuda_device(data_ptr(), output_shape[0], output_shape[1],
                                output_shape[2], output_shape[3], kernel_size, kernel_size,
-                               padding, padding, stride, stride, H, W,
+                               padding, padding, stride, stride, out_h, out_w,
                                output->data_ptr());
       return output;
   }
@@ -543,6 +543,10 @@ TensorPtr Tensor::col2im(const std::vector<int> &output_shape, int kernel_size,
 // Element-wise operations
 TensorPtr Tensor::add(const TensorPtr &other) {
   check_shape_compatible(other);
+  if (is_cuda != other->is_cuda) {
+      throw std::runtime_error("Tensor::add: Device mismatch (CUDA vs CPU)");
+  }
+
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
 
@@ -571,6 +575,10 @@ TensorPtr Tensor::add(const TensorPtr &other) {
 
 TensorPtr Tensor::mul(const TensorPtr &other) {
   check_shape_compatible(other);
+  if (is_cuda != other->is_cuda) {
+      throw std::runtime_error("Tensor::mul: Device mismatch (CUDA vs CPU)");
+  }
+
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
 
@@ -599,7 +607,13 @@ TensorPtr Tensor::mul(const TensorPtr &other) {
 
 TensorPtr Tensor::sub(const TensorPtr &other) {
   // Direct CUDA implementation for sub to avoid mul_scalar + add Overhead
-  check_shape_compatible(other);
+  if (shape != other->shape) {
+      throw std::runtime_error("sub shape mismatch");
+  }
+  if (is_cuda != other->is_cuda) {
+      throw std::runtime_error("Tensor::sub: Device mismatch (CUDA vs CPU)");
+  }
+
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
 
@@ -642,6 +656,13 @@ TensorPtr Tensor::sub(const TensorPtr &other) {
 }
 
 TensorPtr Tensor::div(const TensorPtr &other) {
+  if (shape != other->shape) {
+     throw std::runtime_error("div shape mismatch");
+  }
+  if (is_cuda != other->is_cuda) {
+      throw std::runtime_error("Tensor::div: Device mismatch (CUDA vs CPU)");
+  }
+
   auto output =
       Tensor::zeros(shape, requires_grad || other->requires_grad, is_cuda);
 
@@ -716,6 +737,9 @@ TensorPtr Tensor::matmul(const TensorPtr &other) {
   }
   if (shape[1] != other->shape[0]) {
     throw std::runtime_error("matmul shape mismatch");
+  }
+  if (is_cuda != other->is_cuda) {
+      throw std::runtime_error("Tensor::matmul: Device mismatch (CUDA vs CPU)");
   }
 
   int M = shape[0];
