@@ -38,9 +38,7 @@ private:
   TensorPtr bias_; // Shape: [out_channels]
   bool use_bias;
   TensorPtr last_input; // Cached for backward
-
-  TensorPtr im2col(const TensorPtr &input);
-  TensorPtr col2im(const TensorPtr &col, const std::vector<int> &output_shape);
+  TensorPtr last_col;   // Cached for im2col output
 };
 
 // Linear (Fully Connected) Layer
@@ -106,6 +104,18 @@ public:
 
 private:
   TensorPtr last_output; // Cached for backward
+};
+
+// Dropout Layer
+class Dropout : public Layer {
+public:
+  Dropout(float p = 0.5f) : p(p) {}
+  TensorPtr forward(const TensorPtr &input) override;
+  TensorPtr backward(const TensorPtr &grad_output) override;
+
+private:
+  float p;
+  TensorPtr mask; // Cached for backward
 };
 
 // Flatten Layer

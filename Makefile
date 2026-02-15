@@ -146,22 +146,34 @@ eval:
 		--config $(CONFIG)
 
 # Run all tests
-test: test-layers test-gradient test-cuda
+test: test-layers test-gradient test-cuda test-cuda-ops test-device-ops test-gpu-integrity
 	@echo ""
 	@echo "=== All tests completed ==="
 
 # Individual test targets
 test-layers:
 	@echo "Running layer tests..."
-	$(PYTHON) scripts/test_all_layers.py
+	$(PYTHON) scripts/tests/test_all_layers.py
 
 test-gradient:
 	@echo "Running gradient tests..."
-	$(PYTHON) scripts/test_gradient.py
+	$(PYTHON) scripts/tests/test_gradient.py
 
 test-cuda:
 	@echo "Running CUDA tests..."
-	$(PYTHON) scripts/test_cuda.py
+	$(PYTHON) scripts/tests/test_cuda.py
+
+test-cuda-ops:
+	@echo "Running CUDA Ops tests..."
+	$(PYTHON) scripts/tests/test_cuda_ops.py
+
+test-device-ops:
+	@echo "Running Device Ops verification..."
+	$(PYTHON) scripts/tests/test_device_ops.py
+
+test-gpu-integrity:
+	@echo "Running GPU Integrity tests..."
+	$(PYTHON) scripts/tests/test_gpu_integrity.py
 
 # Clean build artifacts
 clean:

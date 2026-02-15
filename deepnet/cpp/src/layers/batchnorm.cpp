@@ -2,48 +2,14 @@
 #include <cmath>
 #include <random>
 #include <stdexcept>
+#ifdef USE_CUDA
+#include "cuda/cuda_ops.hpp"
+#endif
 
 
 namespace deepnet {
 
-// Dropout Implementation
-TensorPtr Dropout::forward(const TensorPtr &input) {
-  if (!training || p == 0.0f) {
-    return input;
-  }
-
-  auto output = input->clone();
-  mask = Tensor::zeros(input->shape, false, input->is_cuda);
-  static std::random_device rd;
-  static std::mt19937 gen(rd());
-  std::bernoulli_distribution dist(1.0 - p);
-
-  // Inverted dropout
-  float scale = 1.0f / (1.0f - p);
-  for (size_t i = 0; i < output->data.size(); ++i) {
-    if (!dist(gen)) {
-      output->data[i] = 0.0f;
-      mask->data[i] = 0.0f;
-    } else {
-      output->data[i] *= scale;
-      mask->data[i] = scale;
-    }
-  }
-
-  return output;
-}
-
-TensorPtr Dropout::backward(const TensorPtr &grad_output) {
-  if (!training || p == 0.0f || !mask) {
-    return grad_output;
-  }
-
-  auto grad_input = Tensor::zeros(grad_output->shape, false, grad_output->is_cuda);
-  for (size_t i = 0; i < grad_input->data.size(); ++i) {
-    grad_input->data[i] = grad_output->data[i] * mask->data[i];
-  }
-  return grad_input;
-}
+// Dropout implementation removed (moved to layer.cpp)
 
 // BatchNorm2D Implementation
 BatchNorm2D::BatchNorm2D(int num_features, float eps, float momentum)
@@ -56,6 +22,7 @@ BatchNorm2D::BatchNorm2D(int num_features, float eps, float momentum)
 }
 
 TensorPtr BatchNorm2D::forward(const TensorPtr &input) {
+  if (!input) throw std::runtime_error("BatchNorm2D::forward: input is null");
   // Input shape: [batch, channels, height, width]
   if (input->shape.size() != 4) {
     throw std::runtime_error("BatchNorm2D expects 4D input");
@@ -77,6 +44,36 @@ TensorPtr BatchNorm2D::forward(const TensorPtr &input) {
 
   auto output =
       Tensor::zeros(input->shape, true, input->is_cuda);
+
+#ifdef USE_CUDA
+  if (input->is_cuda) {
+    if (!gamma->is_cuda) gamma->cuda();
+    if (!beta->is_cuda) beta->cuda();
+    if (!running_mean->is_cuda) running_mean->cuda();
+    if (!running_var->is_cuda) running_var->cuda();
+
+    if (training) {
+        // Init saved stats
+        if (!saved_mean || saved_mean->shape[0] != channels) {
+            saved_mean = Tensor::zeros({channels}, false, true);
+            saved_var = Tensor::zeros({channels}, false, true);
+        }
+        
+        cuda::batchnorm_training_forward_cuda_device(
+            input->data_ptr(), saved_mean->data_ptr(), saved_var->data_ptr(),
+            running_mean->data_ptr(), running_var->data_ptr(),
+            gamma->data_ptr(), beta->data_ptr(), output->data_ptr(),
+            batch, channels, height, width, eps, momentum);
+    } else {
+        cuda::batchnorm_forward_cuda_device(
+            input->data_ptr(), running_mean->data_ptr(),
+            running_var->data_ptr(), gamma->data_ptr(),
+            beta->data_ptr(), output->data_ptr(), batch,
+            channels, height, width, eps);
+    }
+    return output;
+  }
+#endif
 
   if (training) {
     // Compute mean and variance per channel
@@ -177,6 +174,27 @@ TensorPtr BatchNorm2D::backward(const TensorPtr &grad_output) {
 
   auto grad_input = Tensor::zeros(last_input->shape, false, last_input->is_cuda);
 
+#ifdef USE_CUDA
+  if (grad_output->is_cuda) {
+      if (!saved_mean || !saved_var) {
+          throw std::runtime_error("BatchNorm2D CUDA backward: saved stats not found (forward not called?)");
+      }
+      
+      // Ensure grad buffers
+      gamma->grad_ptr();
+      beta->grad_ptr();
+      
+      cuda::batchnorm_backward_cuda_device(
+          grad_output->data_ptr(), last_input->data_ptr(),
+          saved_mean->data_ptr(), saved_var->data_ptr(),
+          gamma->data_ptr(), grad_input->data_ptr(),
+          gamma->grad_ptr(), beta->grad_ptr(),
+          batch, channels, height, width, eps);
+          
+      return grad_input;
+  }
+#endif
+
   #pragma omp parallel for
   for (int c = 0; c < channels; ++c) {
     float g = gamma->data[c];
@@ -231,6 +249,7 @@ BatchNorm1D::BatchNorm1D(int num_features, float eps, float momentum)
 }
 
 TensorPtr BatchNorm1D::forward(const TensorPtr &input) {
+  if (!input) throw std::runtime_error("BatchNorm1D::forward: input is null");
   // Input shape: [batch, features]
   if (input->shape.size() != 2) {
     throw std::runtime_error("BatchNorm1D expects 2D input");
@@ -250,6 +269,34 @@ TensorPtr BatchNorm1D::forward(const TensorPtr &input) {
 
   auto output =
       Tensor::zeros(input->shape, true, input->is_cuda);
+
+#ifdef USE_CUDA
+  if (input->is_cuda) {
+      if (!gamma->is_cuda) gamma->cuda();
+      if (!beta->is_cuda) beta->cuda();
+      if (!running_mean->is_cuda) running_mean->cuda();
+      if (!running_var->is_cuda) running_var->cuda();
+
+      if (training) {
+        if (!saved_mean || saved_mean->shape[0] != features) {
+            saved_mean = Tensor::zeros({features}, false, true);
+            saved_var = Tensor::zeros({features}, false, true);
+        }
+        cuda::batchnorm_training_forward_cuda_device(
+            input->data_ptr(), saved_mean->data_ptr(), saved_var->data_ptr(),
+            running_mean->data_ptr(), running_var->data_ptr(),
+            gamma->data_ptr(), beta->data_ptr(), output->data_ptr(),
+            batch, features, 1, 1, eps, momentum);
+      } else {
+        cuda::batchnorm_forward_cuda_device(
+            input->data_ptr(), running_mean->data_ptr(),
+            running_var->data_ptr(), gamma->data_ptr(),
+            beta->data_ptr(), output->data_ptr(), batch,
+            features, 1, 1, eps);
+      }
+      return output;
+  }
+#endif
 
   if (training) {
     std::vector<float> mean(features, 0.0f);
@@ -324,6 +371,26 @@ TensorPtr BatchNorm1D::backward(const TensorPtr &grad_output) {
     beta->grad.resize(beta->data.size(), 0.0f);
 
   auto grad_input = Tensor::zeros(last_input->shape, false, last_input->is_cuda);
+
+#ifdef USE_CUDA
+  if (grad_output->is_cuda) {
+      if (!saved_mean || !saved_var) {
+          throw std::runtime_error("BatchNorm1D CUDA backward: saved stats not found");
+      }
+      
+      gamma->grad_ptr();
+      beta->grad_ptr();
+      
+      cuda::batchnorm_backward_cuda_device(
+          grad_output->data_ptr(), last_input->data_ptr(),
+          saved_mean->data_ptr(), saved_var->data_ptr(),
+          gamma->data_ptr(), grad_input->data_ptr(),
+          gamma->grad_ptr(), beta->grad_ptr(),
+          batch, features, 1, 1, eps);
+          
+      return grad_input;
+  }
+#endif
 
   #pragma omp parallel for
   for (int f = 0; f < features; ++f) {

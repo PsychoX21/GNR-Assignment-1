@@ -1,5 +1,8 @@
 #include "optimizers/optimizer.hpp"
 #include <cmath>
+#ifdef USE_CUDA
+#include "cuda/cuda_ops.hpp"
+#endif
 
 namespace deepnet {
 
@@ -35,6 +38,19 @@ void SGD::step() {
     auto &param = parameters[i];
     if (!param->requires_grad)
       continue;
+
+#ifdef USE_CUDA
+    if (param->is_cuda) {
+        // Ensure gradients are allocated and pointers are valid
+        float* d_p = param->data_ptr();
+        float* d_g = param->grad_ptr();
+        float* d_v = (momentum > 0.0f) ? velocity[i]->data_ptr() : nullptr;
+        
+        cuda::sgd_update_cuda_device(d_p, d_v, d_g, lr, momentum, weight_decay,
+                                   nesterov, param->numel());
+        continue;
+    }
+#endif
 
     // Add weight decay
     if (weight_decay > 0.0f) {
@@ -90,6 +106,19 @@ void Adam::step() {
     auto &param = parameters[i];
     if (!param->requires_grad)
       continue;
+
+#ifdef USE_CUDA
+    if (param->is_cuda) {
+        float* d_p = param->data_ptr();
+        float* d_g = param->grad_ptr();
+        float* d_m = m[i]->data_ptr();
+        float* d_v = v[i]->data_ptr();
+        
+        cuda::adam_update_cuda_device(d_p, d_m, d_v, d_g, lr, beta1, beta2, eps,
+                                    weight_decay, t, param->numel());
+        continue;
+    }
+#endif
 
     // Add weight decay
     if (weight_decay > 0.0f) {

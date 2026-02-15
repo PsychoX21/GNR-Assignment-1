@@ -22,8 +22,27 @@ PYBIND11_MODULE(deepnet_backend, m) {
       .def(py::init<>())
       .def(py::init<const std::vector<int> &, bool, bool>(), py::arg("shape"),
            py::arg("requires_grad") = false, py::arg("cuda") = false)
-      .def_readwrite("data", &Tensor::data)
-      .def_readwrite("grad", &Tensor::grad)
+      .def(py::init<const std::vector<float> &, const std::vector<int> &, bool, bool>(),
+           py::arg("data"), py::arg("shape"), py::arg("requires_grad") = false, 
+           py::arg("cuda") = false)
+      .def_property("data",
+        [](Tensor &t) -> std::vector<float>& {
+            if (t.is_cuda) t.sync_to_cpu();
+            return t.data;
+        },
+        [](Tensor &t, const std::vector<float> &v) {
+            t.data = v;
+            if (t.is_cuda) t.sync_to_cuda();
+        })
+      .def_property("grad",
+        [](Tensor &t) -> std::vector<float>& {
+            if (t.is_cuda) t.sync_to_cpu();
+            return t.grad;
+        },
+        [](Tensor &t, const std::vector<float> &v) {
+            t.grad = v;
+            if (t.is_cuda) t.sync_to_cuda();
+        })
       .def_readwrite("shape", &Tensor::shape)
       .def_readwrite("requires_grad", &Tensor::requires_grad)
       .def_readwrite("is_cuda", &Tensor::is_cuda)
@@ -87,8 +106,8 @@ PYBIND11_MODULE(deepnet_backend, m) {
       .def("detach", &Tensor::detach)
 
       // CUDA
-      .def("cuda", &Tensor::cuda)
-      .def("cpu", &Tensor::cpu)
+      .def("cuda", [](std::shared_ptr<Tensor> t) { t->cuda(); return t; })
+      .def("cpu", [](std::shared_ptr<Tensor> t) { t->cpu(); return t; })
       .def("to", &Tensor::to)
 
       // Utility

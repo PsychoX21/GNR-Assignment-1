@@ -1,8 +1,8 @@
 """Comprehensive layer test: verifies all layer types work in forward+backward."""
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'build'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'build', 'Release'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'Release'))
 
 import deepnet_backend as backend
 

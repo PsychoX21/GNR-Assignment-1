@@ -1,8 +1,8 @@
 """Quick gradient check: verifies that the model can learn on synthetic data."""
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'build'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'build', 'Release'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'Release'))
 
 import deepnet_backend as backend
 
