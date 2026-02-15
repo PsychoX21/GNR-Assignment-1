@@ -128,6 +128,7 @@ public:
 
   // Utility
   void fill_(float value);
+  void copy_(const std::shared_ptr<Tensor> &other);
   void uniform_(float min, float max);
   void normal_(float mean, float std);
   TensorPtr clone();

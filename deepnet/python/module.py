@@ -116,7 +116,35 @@ class Module:
         params = self.parameters()
         for i, param in enumerate(params):
             if f'param_{i}' in state:
-                param.data = state[f'param_{i}']['data']
+                saved_item = state[f'param_{i}']
+                saved_data = saved_item['data']
+                
+                # Validation
+                if isinstance(saved_data, list):
+                    # Check size matches shape
+                    expected_count = 1
+                    for dim in param.shape:
+                        expected_count *= dim
+                        
+                    if len(saved_data) != expected_count:
+                        print(f"WARNING: Param {i} size mismatch! Shape {param.shape} needs {expected_count}, got {len(saved_data)}")
+                    
+                # Load parameter data
+                try:
+                    # Create target tensor from saved data
+                    target = backend.Tensor.from_data(saved_data, param.shape)
+                    
+                    # Use in-place copy (requires updated backend with copy_)
+                    if hasattr(param, 'copy_'):
+                        param.copy_(target)
+                    else:
+                        # Fallback for older backends
+                        param.data = saved_data
+                        
+                except Exception as e:
+                    print(f"Warning: Failed to update parameter {i}: {e}")
+                    param.data = saved_data
+
 
 
 class Sequential(Module):

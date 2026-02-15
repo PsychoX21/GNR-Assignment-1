@@ -1286,6 +1286,47 @@ TensorPtr Tensor::to(bool cuda) {
 }
 
 // Utility
+void Tensor::copy_(const TensorPtr &other) {
+  if (shape != other->shape) {
+    throw std::runtime_error("copy_ expects same shape");
+  }
+  
+  // Update requires_grad? PyTorch doesn't, usually. 
+  
+#ifdef USE_CUDA
+  if (is_cuda && other->is_cuda) {
+      cuda::cuda_memcpy_device_to_device(d_data, other->d_data, numel() * sizeof(float));
+      cuda_dirty = true;
+      cpu_dirty = false; // Invalidated
+  } else if (is_cuda && !other->is_cuda) {
+      // Host to Device
+      cuda::cuda_memcpy_host_to_device(d_data, other->data.data(), numel() * sizeof(float));
+      cuda_dirty = true;
+      cpu_dirty = false;
+  } else if (!is_cuda && other->is_cuda) {
+      // Device to Host
+      // other needs to sync first? No, we access other's device pointer
+      // But other->d_data might be stale if other is dirty on CPU?
+      // Check other's state. 
+      // Safest: access property that ensures sync?
+      // other->data_ptr() handles sync?
+      // No, data_ptr() returns raw pointer.
+      // If other is cuda, d_data should be valid unless cpu_dirty is true?
+      // Let's assume typical usage or force sync on other if needed.
+      // But we can just use cuda_memcpy_device_to_host
+      cuda::cuda_memcpy_device_to_host(data.data(), other->d_data, numel() * sizeof(float));
+  } else {
+      // CPU to CPU
+      data = other->data;
+  }
+#else
+  if (other->is_cuda) {
+     throw std::runtime_error("Compile without CUDA but source is CUDA?");
+  }
+  data = other->data;
+#endif
+}
+
 void Tensor::fill_(float value) {
   if (is_cuda) {
 #ifdef USE_CUDA

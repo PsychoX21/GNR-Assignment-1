@@ -110,7 +110,8 @@ PYBIND11_MODULE(deepnet_backend, m) {
       .def("cpu", [](std::shared_ptr<Tensor> t) { t->cpu(); return t; })
       .def("to", &Tensor::to)
 
-      // Utility
+       // Utility
+      .def("copy_", &Tensor::copy_)
       .def("fill_", &Tensor::fill_)
       .def("uniform_", &Tensor::uniform_)
       .def("normal_", &Tensor::normal_)
