@@ -18,6 +18,21 @@ import deepnet_backend as backend
 from deepnet.python.data import ImageFolderDataset, DataLoader
 from deepnet.python.models import build_model_from_config, calculate_model_stats, save_checkpoint
 from deepnet.python.utils import seed_everything
+from datetime import datetime
+
+class TeeLogger(object):
+    def __init__(self, filename):
+        self.terminal = sys.stdout
+        self.log = open(filename, "a")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
 
 def flatten_batch(images):
     flat = []
@@ -155,6 +170,14 @@ def main():
     checkpoint_dir = Path(args.checkpoint_dir)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     os.makedirs('logs', exist_ok=True)
+
+    # Setup file logging
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dataset_name = Path(args.dataset).name
+    config_name = Path(args.config).stem
+    log_file = f"logs/train_{dataset_name}_{config_name}_{timestamp}.log"
+    sys.stdout = TeeLogger(log_file)
+    print(f"Logging to: {log_file}")
 
     print("=" * 70)
     print("DeepNet Training")

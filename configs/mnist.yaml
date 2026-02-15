@@ -1,5 +1,5 @@
 # ==========================================================
-# MNIST - ResNet20 Style (28x28x1)
+# MNIST - ResNet20 Style (32x32x1)
 # Optimized for very high accuracy (99.4%+)
 # ==========================================================
 
@@ -9,7 +9,7 @@ model:
   architecture:
 
     # -------------------------
-    # Stem (28x28)
+    # Stem (32x32)
     # -------------------------
     - type: "Conv2D"
       in_channels: 1
@@ -25,7 +25,7 @@ model:
     - type: "ReLU"
 
     # -------------------------
-    # Stage 1 (28x28)
+    # Stage 1 (32x32)
     # -------------------------
     - type: "ResidualBlock"
       in_channels: 16
@@ -43,7 +43,7 @@ model:
       stride: 1
 
     # -------------------------
-    # Stage 2 (14x14)
+    # Stage 2 (16x16)
     # -------------------------
     - type: "ResidualBlock"
       in_channels: 16
@@ -61,7 +61,7 @@ model:
       stride: 1
 
     # -------------------------
-    # Stage 3 (7x7)
+    # Stage 3 (8x8)
     # -------------------------
     - type: "ResidualBlock"
       in_channels: 32
@@ -94,7 +94,7 @@ model:
 # ==========================================================
 
 training:
-  epochs: 40
+  epochs: 10
   batch_size: 128
 
   optimizer: "SGD"
@@ -105,7 +105,7 @@ training:
 
   scheduler:
     type: "CosineAnnealingLR"
-    T_max: 40
+    T_max: 10
     eta_min: 0.0001
 
 # ==========================================================
@@ -113,7 +113,7 @@ training:
 # ==========================================================
 
 data:
-  image_size: 28
+  image_size: 32
   channels: 1
 
   augmentation:

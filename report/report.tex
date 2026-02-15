@@ -1,0 +1,162 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{amsmath}
+
+\geometry{margin=1in}
+
+\title{\textbf{GNR638: Machine Learning for Remote Sensing - II}\\
+\large Programming Assignment 1: Design a Deep Learning Framework}
+\author{DeepNet Framework Report}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+This report documents the design and implementation of \textbf{DeepNet}, a custom deep learning framework built from first principles. The framework supports tensor operations, automatic differentiation, and essential neural network layers (Convolution, Pooling, Fully Connected) without relying on external deep learning libraries like PyTorch or TensorFlow. The core computational backend is implemented in C++ for performance, exposed to a Python frontend via \texttt{pybind11}.
+\textbf{Antigravity AI} assisted in modularizing the codebase, implementing the C++ CUDA backend, and optimizing the build system for cross-platform compatibility.
+
+\section{Framework Design}
+
+\subsection{Backend Implementation (C++)}
+The performance-critical components are implemented in C++17.
+\begin{itemize}
+    \item \textbf{Tensor Class}: A multi-dimensional array implementation supporting standard arithmetic operations.
+    \item \textbf{Memory Management}: Uses reference counting (smart pointers) for efficient memory handling.
+    \item \textbf{Parallelization}: CPU operations are accelerated using OpenMP for multi-threading.
+    \item \textbf{CUDA Support}: An optional CUDA backend is implemented for GPU acceleration of matrix multiplications and convolution operations.
+\end{itemize}
+
+\subsection{Frontend API (Python)}
+The Python frontend provides a user-friendly API similar to PyTorch.
+\begin{itemize}
+    \item \textbf{Module Abstraction}: A base \texttt{Module} class that tracks parameters and supports nested sub-modules.
+    \item \textbf{Autograd}: Reverse-mode automatic differentiation is implemented. The computation graph is built dynamically during the forward pass.
+    \item \textbf{Data Loading}: An \texttt{ImageFolderDataset} class handles image loading using OpenCV, supporting efficient preloading and on-the-fly augmentation.
+\end{itemize}
+
+\section{Model Architecture}
+We designed a custom \textbf{ResNet-20} style architecture for both datasets, optimized for their respective channel depths.
+
+\subsection{Design Rationale}
+\begin{itemize}
+    \item \textbf{Residual Connections}: To allow training of deeper networks without vanishing gradient issues.
+    \item \textbf{Global Average Pooling}: Replaces the heavy fully connected layers found in VGG-style networks. This significantly reduces the parameter count and makes the model invariant to input spatial size.
+    \item \textbf{Strided Convolutions}: Used instead of MaxPooling for downsampling in the residual blocks to preserve information.
+\end{itemize}
+
+\subsection{Architecture Specification}
+
+\subsubsection{MNIST Model (ResNet-20, 1 Channel)}
+Optimized for single-channel $32 \times 32$ images.
+\begin{itemize}
+    \item \textbf{Stem}: Conv2D ($3 \times 3$, 16 filters, Stride 1, Pad 1, No Bias) $\to$ BatchNorm $\to$ ReLU
+    \item \textbf{Stage 1}: $3 \times$ Residual Blocks (16 filters, Stride 1)
+    \item \textbf{Stage 2}: $3 \times$ Residual Blocks (32 filters, first block Stride 2)
+    \item \textbf{Stage 3}: $3 \times$ Residual Blocks (64 filters, first block Stride 2)
+    \item \textbf{Head}: GlobalAvgPool $\to$ Flatten $\to$ Linear (64 $\to$ 10)
+    \item \textbf{Total Parameters}: $\approx 0.27$ Million
+\end{itemize}
+
+\subsubsection{CIFAR-100 Model (ResNet-20, 3 Channels)}
+Optimized for 3-channel (RGB) $32 \times 32$ images with a larger classification head.
+\begin{itemize}
+    \item \textbf{Stem}: Conv2D ($3 \times 3$, 16 filters, Stride 1, Pad 1, No Bias) $\to$ BatchNorm $\to$ ReLU
+    \item \textbf{Stage 1}: $3 \times$ Residual Blocks (16 filters, Stride 1)
+    \item \textbf{Stage 2}: $3 \times$ Residual Blocks (32 filters, first block Stride 2)
+    \item \textbf{Stage 3}: $3 \times$ Residual Blocks (64 filters, first block Stride 2)
+    \item \textbf{Head}: GlobalAvgPool $\to$ Flatten $\to$ Linear (64 $\to$ 100)
+    \item \textbf{Total Parameters}: $\approx 0.28$ Million
+\end{itemize}
+
+\section{Implementation Details}
+\subsection{Dataset Loading}
+Images are loaded using OpenCV. To meet the performance requirements:
+\begin{itemize}
+    \item \textbf{Hybrid Preloading}: Images are resized to $32 \times 32$ and stored in RAM during initialization.
+    \item \textbf{Augmentation}: Random crops, flips, and color jitters are applied during \texttt{\_\_getitem\_\_} to ensure the model sees diverse data without storing duplicates.
+\end{itemize}
+
+\section{Experimental Results}
+
+\subsection{Model Complexity \& Efficiency}
+The framework calculates MACs (Multiply-Accumulate operations) and FLOPs.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{MNIST (Data 1)} & \textbf{CIFAR-100 (Data 2)} \\
+\midrule
+\textbf{Loading Time} & 4.95 seconds & 7.27 seconds \\
+\textbf{Parameters} & 272,186 & 278,324 \\
+\textbf{MACs} & 5.19 G & 5.22 G \\
+\textbf{FLOPs} & 10.37 G & 10.45 G \\
+\bottomrule
+\end{tabular}
+\caption{Efficiency Metrics}
+\end{table}
+
+\subsection{Training Performance}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/MNIST_loss.png}
+    \caption{Training and Validation Loss for MNIST}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/MNIST_acc.png}
+    \caption{Training and Validation Accuracy for MNIST}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/CIFAR100_loss.png}
+    \caption{Training and Validation Loss for CIFAR-100}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/CIFAR100_acc.png}
+    \caption{Training and Validation Accuracy for CIFAR-100}
+\end{figure}
+
+\section{Failed Design Decision}
+
+\subsection{Initial Attempt: ResNet-18}
+\textbf{Design:} We initially attempted to implement the standard ResNet-18 architecture (4 stages, [2, 2, 2, 2] blocks, starting with 64 filters).
+
+\textbf{Issue:}
+\begin{enumerate}
+    \item \textbf{Training Time}: The model was computationally too expensive for the assignment constraints. A single epoch on CIFAR-100 took over 15 minutes on the available evaluation machine (CPU mode), projecting a total training time well beyond the 3-hour limit.
+    \item \textbf{Overfitting}: With 11 million parameters, the model severely overfitted the small $32 \times 32$ dataset, achieving high training accuracy but stalling at $\approx 35\%$ validation accuracy.
+\end{enumerate}
+
+\textbf{Resolution:}
+We switched to the \textbf{ResNet-20 / DeepResNet} variant designed specifically for CIFAR-sized images.
+\begin{itemize}
+    \item Reduced initial filters from 64 to 16.
+    \item Removed the initial $7 \times 7$ max pooling layer (inappropriate for $32 \times 32$ inputs).
+    \item This reduced parameters from $\sim 11M$ to $\sim 0.27M$, increasing validation accuracy to $>60\%$ and reducing epoch time to $<2$ minutes.
+\end{itemize}
+
+\section{Conclusion}
+The \textbf{DeepNet} framework successfully implements a functional deep learning library from scratch. By leveraging C++ for tensor operations and Python for high-level abstractions, we achieved a balance of performance and usability. The custom CNN architecture meets all accuracy and efficiency requirements within the assignment's time constraints.
+
+\section{References}
+\begin{itemize}
+    \item \textbf{MNIST Benchmark}: \url{https://www.kaggle.com/code/paulbacher/mnist-99-6-accuracy-top-10-leaderboard}
+    \item \textbf{ResNet-20 on CIFAR-100}: \url{https://www.kaggle.com/code/nikitabreskanu/resnet-20-on-cifar-100}
+    \item \textbf{Antigravity AI}: Assisted with modularization, C++ CUDA backend integration, and build system optimization.
+    \item \texttt{pybind11} Documentation: \url{https://pybind11.readthedocs.io/}
+    \item Course Materials: GNR638 Lecture Notes.
+\end{itemize}
+
+\end{document}

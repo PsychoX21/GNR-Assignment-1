@@ -72,7 +72,7 @@ model:
       out_features: "num_classes"
 
 training:
-  epochs: 2
+  epochs: 100
   batch_size: 128
 
   optimizer: "SGD"
@@ -83,7 +83,7 @@ training:
 
   scheduler:
     type: "CosineAnnealingLR"
-    T_max: 120
+    T_max: 100
     eta_min: 0.0001
 
 data:
@@ -93,7 +93,7 @@ data:
   augmentation:
     enabled: true
     random_crop_padding: 4
-    horizontal_flip: 0.5
+    horizontal_flip: 0.2
 
 device:
   use_cuda: true
