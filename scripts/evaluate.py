@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'build'))
 
 import deepnet_backend as backend
 from deepnet.python.data import ImageFolderDataset, DataLoader, ensure_dataset_extracted
-from deepnet.python.models import build_model_from_config, load_checkpoint
+from deepnet.python.models import build_model_from_config, load_checkpoint, calculate_model_stats
 from deepnet.python.utils import seed_everything
 import time
 
@@ -25,7 +25,7 @@ def flatten_batch(images):
         extend(img)
     return flat
 
-def evaluate(model, dataloader, criterion, num_classes):
+def evaluate(model, dataloader, criterion, num_classes, channels=3, image_size=32):
     """Evaluate model with per-class metrics"""
     model.eval()
     total_loss = 0.0
@@ -43,9 +43,9 @@ def evaluate(model, dataloader, criterion, num_classes):
         batch_size = len(images)
         input_tensor = backend.Tensor.from_data(
             batch_images,
-            [batch_size, 3, 32, 32],
+            [batch_size, channels, image_size, image_size],
             requires_grad=False,
-            cuda=next(model.parameters()).is_cuda
+            cuda=next(iter(model.parameters())).is_cuda
         )
         
         outputs = model(input_tensor)
@@ -81,9 +81,10 @@ def evaluate(model, dataloader, criterion, num_classes):
 def main():
     parser = argparse.ArgumentParser(description='Evaluate DeepNet CNN')
     parser.add_argument('--dataset', type=str, required=True, help='Path to dataset directory')
-    parser.add_argument('--checkpoint', type=str, required=True, help='Path to checkpoint file')
-    parser.add_argument('--config', type=str, default='configs/model_config.yaml', help='Path to model configuration YAML file')
-    parser.add_argument('--batch-size', type=int, default=64)
+    parser.add_argument('--checkpoint', type=str, required=True, help='Path to model checkpoint')
+    parser.add_argument('--config', type=str, help='Path to model config YAML (optional, will try to load from checkpoint if not provided)')
+    parser.add_argument('--batch-size', type=int, default=64, help='Batch size')
+    parser.add_argument('--val-split', type=float, default=1.0, help='Fraction of data to use for evaluation (default 1.0 for full test set)')
     
     args = parser.parse_args()
     
@@ -96,11 +97,34 @@ def main():
     print("DeepNet Evaluation")
     print("=" * 70)
     
-    # Load dataset (use validation split)
+    # 1. Extract config first
+    config = None
+    if args.config:
+        print(f"\nBuilding model from provided config: {args.config}")
+        import yaml
+        with open(args.config, 'r') as f:
+            config = yaml.safe_load(f)
+    else:
+        print(f"\nNo config provided, attempting to load from checkpoint: {args.checkpoint}")
+        import pickle
+        with open(args.checkpoint, 'rb') as f:
+            ckpt_data = pickle.load(f)
+        config = ckpt_data.get('config')
+        if config is None:
+            print("Error: No config found in checkpoint and none provided via --config.")
+            sys.exit(1)
+        print("Successfully loaded model architecture from checkpoint.")
+
+    data_config = config.get('data', {})
+    image_size = data_config.get('image_size', 32)
+    channels = data_config.get('channels', 3)
+
+    # 2. Load dataset with correct image properties
     print(f"\nLoading dataset: {args.dataset}")
+    print(f"  Image properties: {image_size}x{image_size}, {channels} channels")
     dataset_start = time.time()
     
-    dataset = ImageFolderDataset(args.dataset, image_size=32, train=False, val_split=0.2)
+    dataset = ImageFolderDataset(args.dataset, image_size=image_size, train=False, val_split=args.val_split)
     
     dataset_load_time = time.time() - dataset_start
     print(f"Dataset loading time: {dataset_load_time:.2f} seconds")
@@ -111,12 +135,21 @@ def main():
     
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     
-    # Build model
-    print(f"\nBuilding model from: {args.config}")
-    model, config = build_model_from_config(args.config, num_classes)
+    # 3. Build model
+    model, built_config = build_model_from_config(config, num_classes)
     
-    # Load checkpoint
-    print(f"Loading checkpoint: {args.checkpoint}")
+    # Calculate and print model stats
+    stats = calculate_model_stats(
+        model, [args.batch_size, channels, image_size, image_size]
+    )
+    
+    print(f"\nModel Statistics:")
+    print(f"  Parameters: {stats['parameters']:,}")
+    print(f"  MACs: {stats['macs']:,}")
+    print(f"  FLOPs: {stats['flops']:,}")
+    
+    # 4. Load weights
+    print(f"\nLoading weights from: {args.checkpoint}")
     load_checkpoint(model, args.checkpoint)
     
     # Evaluate
@@ -125,7 +158,7 @@ def main():
     print("=" * 70)
     
     criterion = backend.CrossEntropyLoss()
-    loss, accuracy, class_accuracies = evaluate(model, dataloader, criterion, num_classes)
+    loss, accuracy, class_accuracies = evaluate(model, dataloader, criterion, num_classes, channels, image_size)
     
     print(f"\nOverall Results:")
     print(f"  Loss: {loss:.4f}")

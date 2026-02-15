@@ -340,14 +340,14 @@ def main():
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_path = f'{args.checkpoint_dir}/best_{dataset_name}.pth'
-            save_checkpoint(model, optimizer, epoch, val_loss, best_path)
+            save_checkpoint(model, best_path, optimizer=optimizer, epoch=epoch, loss=val_loss, config=config)
             print(f"[BEST] Saved best model -> {best_path} "
                   f"(Val Acc: {best_val_acc:.2f}%)")
 
         if epoch % 10 == 0:
             save_checkpoint(
-                model, optimizer, epoch, val_loss,
-                f'{args.checkpoint_dir}/{dataset_name}_epoch_{epoch}.pth'
+                model, f'{args.checkpoint_dir}/{dataset_name}_epoch_{epoch}.pth',
+                optimizer=optimizer, epoch=epoch, loss=val_loss, config=config
             )
 
     print("=" * 70)

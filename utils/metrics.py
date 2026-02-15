@@ -5,10 +5,11 @@ def count_parameters(model):
     total = 0
     params = model.parameters()
     for param in params:
-        param_count = 1
-        for dim in param.shape:
-            param_count *= dim
-        total += param_count
+        if getattr(param, 'requires_grad', True):
+            param_count = 1
+            for dim in param.shape:
+                param_count *= dim
+            total += param_count
     return total
 
 
@@ -143,8 +144,8 @@ def estimate_macs_flops(model, input_shape):
                 if isinstance(k, tuple): k = k[0]
                 if isinstance(s, tuple): s = s[0]
                 
-                current_shape[2] = current_shape[2] // s
-                current_shape[3] = current_shape[3] // s
+                current_shape[2] = (current_shape[2] - k) // s + 1
+                current_shape[3] = (current_shape[3] - k) // s + 1
         
         elif 'Flatten' in layer_type:
             # Flatten to 2D

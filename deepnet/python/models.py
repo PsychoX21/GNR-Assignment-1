@@ -39,10 +39,13 @@ except ImportError:
         return {'macs': 0, 'flops': 0}
 
 
-def build_model_from_config(config_path, num_classes):
-    """Build model from YAML configuration"""
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
+def build_model_from_config(config_or_path, num_classes):
+    """Build model from YAML configuration file or dictionary"""
+    if isinstance(config_or_path, dict):
+        config = config_or_path
+    else:
+        with open(config_or_path, 'r') as f:
+            config = yaml.safe_load(f)
     
     architecture = config['model']['architecture']
     layers = []
@@ -149,25 +152,35 @@ def calculate_model_stats(model, input_shape):
     }
 
 
-def save_checkpoint(model, optimizer, epoch, loss, path):
+def save_checkpoint(model, path, optimizer=None, epoch=None, loss=None, config=None):
     """Save model checkpoint"""
     checkpoint = {
         'epoch': epoch,
         'model_state': model.state_dict(),
         'loss': loss,
+        'config': config,
     }
+    
+    # Optimizer state saving could be added here if backend supports it
+    if optimizer and hasattr(optimizer, 'state_dict'):
+        checkpoint['optimizer_state'] = optimizer.state_dict()
     
     import pickle
     with open(path, 'wb') as f:
         pickle.dump(checkpoint, f)
 
 
-def load_checkpoint(model, optimizer, path):
+def load_checkpoint(model, path, optimizer=None):
     """Load model checkpoint"""
     import pickle
     with open(path, 'rb') as f:
         checkpoint = pickle.load(f)
     
     model.load_state_dict(checkpoint['model_state'])
-    return checkpoint['epoch'], checkpoint['loss']
+    
+    # Optimizer state loading could be added here if backend supports it
+    if optimizer and 'optimizer_state' in checkpoint and hasattr(optimizer, 'load_state_dict'):
+        optimizer.load_state_dict(checkpoint['optimizer_state'])
+        
+    return checkpoint.get('epoch'), checkpoint.get('loss'), checkpoint.get('config')
 

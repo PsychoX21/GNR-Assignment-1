@@ -130,7 +130,7 @@ class Sequential(Module):
     
     def forward(self, x):
         """Forward pass through all layers"""
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             if isinstance(layer, Module):
                 x = layer(x)
             elif hasattr(layer, 'forward'):
@@ -171,6 +171,9 @@ class Conv2DWrapper(Module):
         self.stride = stride
         self.padding = padding
         self.layer = backend.Conv2D(in_channels, out_channels, kernel_size, stride, padding, bias)
+        self.stride = stride
+        self.padding = padding
+        self.kernel_size = kernel_size
         self._parameters = self.layer.parameters()
     
     def forward(self, x):
@@ -210,6 +213,8 @@ class MaxPool2DWrapper(Module):
         super().__init__()
         if stride is None:
             stride = kernel_size
+        self.kernel_size = kernel_size
+        self.stride = stride
         self.layer = backend.MaxPool2D(kernel_size, stride)
     
     def forward(self, x):
@@ -334,6 +339,8 @@ class AvgPool2DWrapper(Module):
         super().__init__()
         if stride is None:
             stride = kernel_size
+        self.kernel_size = kernel_size
+        self.stride = stride
         self.layer = backend.AvgPool2D(kernel_size, stride)
     
     def forward(self, x):

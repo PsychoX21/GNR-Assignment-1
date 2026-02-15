@@ -5,7 +5,6 @@
 A high-performance CNN framework built from scratch with a C++ backend and Python frontend. Implements all tensor operations, layers, optimizers, and training utilities without any external ML libraries. Includes OpenMP for multi-threaded CPU parallelization and optional CUDA for GPU acceleration.
 
 ---
-
 ## Quick Start
 
 ### Prerequisites
@@ -24,7 +23,9 @@ A high-performance CNN framework built from scratch with a C++ backend and Pytho
 - **Linux**: `sudo apt install build-essential cmake python3-dev`
 - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
 
-### Build & Run
+## 🚀 Quick Start
+
+### 1. Build Framework
 
 ```bash
 # 1. Setup environment (first time only)
@@ -43,20 +44,29 @@ make build install
 
 # 4. Verify everything works
 make test
-
-# 5. Train
-make train DATA=data_1 CONFIG=configs/mnist_config.yaml EPOCHS=30
-make train DATA=data_2 CONFIG=configs/cifar100_config.yaml EPOCHS=50
 ```
 
-**One-command build** (after activating venv):
+### 2. Run Training
 ```bash
-make    # Does: setup + build + install
+# Grader: Provide dataset path and config path
+python scripts/train.py --dataset datasets/data_1 --config configs/mnist_config.yaml
 ```
+
+### 3. Run Evaluation (Standalone)
+```bash
+# Grader: Provide dataset path and weight path
+python scripts/evaluate.py --dataset datasets/data_1 --checkpoint checkpoints/best_data_1.pth
+```
+
+The script will automatically:
+1. Reconstruct the model architecture from metadata embedded in the `.pth` file.
+2. Load the trained weights.
+3. Calculate and print Parameters, MACs, and FLOPs.
+4. Print per-class and overall accuracy on 100% of the provided dataset.
 
 ---
 
-## Makefile Targets
+## Makefile Summary
 
 | Target | Description |
 |---|---|
@@ -181,12 +191,22 @@ python scripts/train.py --dataset datasets/data_2 --config configs/cifar100_conf
 
 ---
 
-## Evaluation
+## Standalone Evaluation
+
+The evaluation script is designed to be fully self-contained. It stores the model architecture configuration inside the `.pth` checkpoint file during training. This allows graders to run evaluation without needing the original config file.
 
 ```bash
-python scripts/evaluate.py --dataset datasets/data_1 --checkpoint checkpoints/best_data_1.pth
-python scripts/evaluate.py --dataset datasets/data_2 --checkpoint checkpoints/best_data_2.pth --config configs/cifar100_config.yaml
+# Grader evaluation command
+python scripts/evaluate.py --dataset [dataset_dir] --checkpoint [model.pth]
 ```
+
+| Argument | Default | Description |
+|---|---|---|
+| `--dataset` | (required) | Path to dataset directory |
+| `--checkpoint` | (required) | Path to `.pth` model file |
+| `--config` | (None) | Optional manual config override |
+| `--batch-size` | 64 | Batch size |
+| `--val-split` | 1.0 | Fraction of data to use (1.0 = all) |
 
 Prints overall accuracy, loss, and per-class accuracy breakdown.
 
@@ -198,8 +218,8 @@ Models are defined in YAML config files. Two optimized configs are provided:
 
 | Config | Architecture | Best For | Target Accuracy |
 |---|---|---|---|
-| `mnist_config.yaml` | LeNet (16→32), 2 conv blocks | data_1 (MNIST, 10 classes) | 97%+ |
-| `cifar100_config.yaml` | 3-block CNN (32→64→128) | data_2 (CIFAR-100, 100 classes) | 35-45% |
+| `mnist_final2.yaml` | LeNet (16→32), 2 conv blocks | data_1 (MNIST, 10 classes) | 97%+ |
+| `cifar100_final.yaml` | 3-block CNN (32→64→128) | data_2 (CIFAR-100, 100 classes) | 35-45% |
 
 The final layer uses `out_features: "num_classes"` which is automatically replaced based on the dataset.
 

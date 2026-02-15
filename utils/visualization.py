@@ -15,7 +15,7 @@ def save_training_log(log_path, epoch, train_loss, train_acc, val_loss=None, val
     
     with open(log_path, 'a') as f:
         # Write header if new file
-        if not file exists:
+        if not file_exists:
             f.write("epoch,train_loss,train_acc,val_loss,val_acc,epoch_time\n")
         
         # Write data

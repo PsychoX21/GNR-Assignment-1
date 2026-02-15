@@ -7,9 +7,3 @@ def seed_everything(seed):
     """
     random.seed(seed)
     backend.manual_seed(seed)
-    # If numpy is used in the future, seed it here too
-    try:
-        import numpy as np
-        np.random.seed(seed)
-    except ImportError:
-        pass

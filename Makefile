@@ -38,6 +38,7 @@ DATA ?= data_1
 CONFIG ?= configs/mnist_config.yaml
 MODEL ?= checkpoints/best_$(DATA).pth
 EPOCHS ?= 50
+VAL_SPLIT ?= 1.0
 
 .PHONY: all setup build install clean distclean train eval test test-cuda test-layers test-gradient help
 
@@ -137,13 +138,13 @@ train:
 		--config $(CONFIG) \
 		--epochs $(EPOCHS)
 
-# Evaluate model
 eval:
-	@echo "Evaluating model on $(DATA)..."
+	@echo "Evaluating model on $(DATA) (split: $(VAL_SPLIT))..."
 	$(PYTHON) scripts/evaluate.py \
 		--dataset datasets/$(DATA) \
 		--checkpoint $(MODEL) \
-		--config $(CONFIG)
+		--config $(CONFIG) \
+		--val-split $(VAL_SPLIT)
 
 # Run all tests
 test: test-layers test-gradient test-cuda test-cuda-ops test-device-ops test-gpu-integrity test-determinism

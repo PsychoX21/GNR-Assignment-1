@@ -1,8 +1,9 @@
 """
 Data loading utilities with train/val split support
 Optimized Hybrid Version:
-- Images preloaded + resized + normalized once
+- Images preloaded + resized once
 - Augmentation applied dynamically per __getitem__
+- Fully YAML-configurable augmentation
 """
 
 import cv2
@@ -36,16 +37,10 @@ def ensure_dataset_extracted(dataset_name):
 
 
 # ==========================================================
-# ImageFolderDataset (Hybrid Version)
+# ImageFolderDataset
 # ==========================================================
 
 class ImageFolderDataset:
-    """
-    Hybrid design:
-    - Disk I/O happens once
-    - Resize + RGB conversion happens once
-    - Augmentation happens dynamically in __getitem__
-    """
 
     def __init__(self,
                  root_dir,
@@ -64,7 +59,7 @@ class ImageFolderDataset:
         self.augmentation = augmentation or {}
 
         # --------------------------
-        # Discover Classes
+        # Discover classes
         # --------------------------
         self.classes = sorted(
             [d.name for d in self.root_dir.iterdir() if d.is_dir()]
@@ -75,7 +70,7 @@ class ImageFolderDataset:
         }
 
         # --------------------------
-        # Collect Image Paths
+        # Collect samples
         # --------------------------
         all_samples = []
 
@@ -87,7 +82,6 @@ class ImageFolderDataset:
                 if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
                     all_samples.append((str(img_path), class_idx))
 
-        # random.seed(seed)  # Disabled to use global seed from seed_everything
         random.shuffle(all_samples)
 
         split_idx = int(len(all_samples) * (1 - val_split))
@@ -101,17 +95,13 @@ class ImageFolderDataset:
               f"{'train' if train else 'val'} samples...")
 
         # --------------------------
-        # Preload Base Images
+        # Preload images into RAM
         # --------------------------
         self.base_images = []
         self.labels = []
 
-        append_img = self.base_images.append
-        append_lbl = self.labels.append
-
         for img_path, label in self.samples:
 
-            # Load image once
             if self.channels == 1:
                 img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
             else:
@@ -120,21 +110,19 @@ class ImageFolderDataset:
             if img is None:
                 raise ValueError(f"Failed to load image: {img_path}")
 
-            # Resize once
             img = cv2.resize(img, (self.image_size, self.image_size))
 
-            # Convert BGR → RGB once
             if self.channels == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-            append_img(img)
-            append_lbl(label)
+            self.base_images.append(img)
+            self.labels.append(label)
 
         print(f"Preload complete. {len(self.base_images)} images in RAM.")
 
-    # --------------------------
-    # Dataset Interface
-    # --------------------------
+    # ==========================================================
+    # Dataset interface
+    # ==========================================================
 
     def __len__(self):
         return len(self.base_images)
@@ -144,12 +132,11 @@ class ImageFolderDataset:
         img = self.base_images[idx]
         label = self.labels[idx]
 
-        # Apply augmentation dynamically
-        if self.train and self.augmentation.get('enabled', False):
+        if self.train and self.augmentation.get("enabled", False):
             img = self._augment(img.copy())
 
-        # Normalize (lightweight)
-        img = img.astype('float32')
+        # Normalize
+        img = img.astype("float32")
         img /= 255.0
 
         # Convert HWC → CHW
@@ -164,32 +151,64 @@ class ImageFolderDataset:
 
         return img_list, label
 
-    # --------------------------
+    # ==========================================================
     # Augmentation
-    # --------------------------
+    # ==========================================================
 
     def _augment(self, img):
 
-        # Horizontal flip
-        if self.augmentation.get('flip', True) and random.random() > 0.5:
+        # ------------------------------------
+        # Random Crop with Padding (CIFAR)
+        # ------------------------------------
+        pad = self.augmentation.get("random_crop_padding", 0)
+        if pad > 0:
+            img = cv2.copyMakeBorder(
+                img, pad, pad, pad, pad,
+                borderType=cv2.BORDER_REFLECT
+            )
+            h, w = img.shape[:2]
+            top = random.randint(0, h - self.image_size)
+            left = random.randint(0, w - self.image_size)
+            img = img[top:top+self.image_size,
+                      left:left+self.image_size]
+
+        # ------------------------------------
+        # Horizontal Flip
+        # ------------------------------------
+        flip_prob = self.augmentation.get("horizontal_flip", 0.0)
+        if flip_prob > 0 and random.random() < flip_prob:
             img = cv2.flip(img, 1)
 
+        # ------------------------------------
         # Rotation
-        if self.augmentation.get('rotate', True):
-            angle = random.uniform(-15, 15)
+        # ------------------------------------
+        max_rotation = self.augmentation.get("rotation", 0)
+        if max_rotation > 0:
+            angle = random.uniform(-max_rotation, max_rotation)
             h, w = img.shape[:2]
             M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
             img = cv2.warpAffine(img, M, (w, h))
 
+        # ------------------------------------
         # Brightness / Contrast
-        if (self.augmentation.get('brightness', True) or
-                self.augmentation.get('contrast', True)):
+        # brightness & contrast are strengths in [0,1]
+        # ------------------------------------
+        brightness = self.augmentation.get("brightness", 0)
+        contrast = self.augmentation.get("contrast", 0)
 
-            alpha = random.uniform(0.8, 1.2) \
-                if self.augmentation.get('contrast', True) else 1.0
+        if brightness > 0 or contrast > 0:
 
-            beta = random.uniform(-20, 20) \
-                if self.augmentation.get('brightness', True) else 0
+            alpha = 1.0
+            beta = 0.0
+
+            if contrast > 0:
+                alpha = random.uniform(1 - contrast, 1 + contrast)
+
+            if brightness > 0:
+                beta = random.uniform(
+                    -brightness * 255,
+                    brightness * 255
+                )
 
             img = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
 
@@ -225,12 +244,9 @@ class DataLoader:
             images = []
             labels = []
 
-            append_img = images.append
-            append_lbl = labels.append
-
             for idx in batch_indices:
                 img, label = self.dataset[idx]
-                append_img(img)
-                append_lbl(label)
+                images.append(img)
+                labels.append(label)
 
             yield images, labels

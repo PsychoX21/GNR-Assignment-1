@@ -7,10 +7,10 @@ and full training loop integration on GPU.
 import sys
 import os
 import time
-import numpy as np
+import random
 
 SEED = 42
-np.random.seed(SEED)
+random.seed(SEED)
 
 # Add project root and deepnet to path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -58,9 +58,9 @@ def test_gpu_pipeline():
 
     # 1. Setup Data (High Res for GAP/Residual)
     print("  1. Creating Input Tensor...")
-    # [batch=8, channels=3, H=8, W=8] - Larger batch for BN stability
-    x_np = np.random.randn(8, 3, 8, 8).astype(np.float32)
-    x = backend.Tensor.from_data(x_np.flatten().tolist(), [8, 3, 8, 8], True, True)
+    # [batch=8, channels=3, H=8, W=8]
+    data = [random.gauss(0, 1) for _ in range(8 * 3 * 8 * 8)]
+    x = backend.Tensor.from_data(data, [8, 3, 8, 8], True, True)
     check_tensor(x, "Input (x)")
 
     # 2. Build Complex Model (Mini-ResNet style)
