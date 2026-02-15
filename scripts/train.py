@@ -18,6 +18,12 @@ import deepnet_backend as backend
 from deepnet.python.data import ImageFolderDataset, DataLoader
 from deepnet.python.models import build_model_from_config, calculate_model_stats, save_checkpoint
 
+def flatten_batch(images):
+    flat = []
+    extend = flat.extend
+    for img in images:
+        extend(img)
+    return flat
 
 # ==============================
 # Training
@@ -36,7 +42,7 @@ def train_epoch(model, dataloader, criterion, optimizer,
         optimizer.zero_grad()
 
         # Flatten batch
-        batch_images = [pixel for img in images for pixel in img]
+        batch_images = flatten_batch(images)
         batch_size = len(images)
 
         input_tensor = backend.Tensor.from_data(

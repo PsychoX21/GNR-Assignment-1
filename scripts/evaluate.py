@@ -17,6 +17,12 @@ from deepnet.python.data import ImageFolderDataset, DataLoader, ensure_dataset_e
 from deepnet.python.models import build_model_from_config, load_checkpoint
 import time
 
+def flatten_batch(images):
+    flat = []
+    extend = flat.extend
+    for img in images:
+        extend(img)
+    return flat
 
 def evaluate(model, dataloader, criterion, num_classes):
     """Evaluate model with per-class metrics"""
@@ -31,9 +37,7 @@ def evaluate(model, dataloader, criterion, num_classes):
     
     for images, labels in dataloader:
         # Convert to tensor
-        batch_images = []
-        for img in images:
-            batch_images.extend(img)
+        batch_images = flatten_batch(images)
         
         batch_size = len(images)
         input_tensor = backend.Tensor.from_data(
