@@ -25,7 +25,7 @@ def flatten_batch(images):
         extend(img)
     return flat
 
-def evaluate(model, dataloader, criterion, num_classes, channels=3, image_size=32):
+def evaluate(model, dataloader, criterion, num_classes, use_cuda=False, channels=3, image_size=32):
     """Evaluate model with per-class metrics"""
     model.eval()
     total_loss = 0.0
@@ -45,7 +45,7 @@ def evaluate(model, dataloader, criterion, num_classes, channels=3, image_size=3
             batch_images,
             [batch_size, channels, image_size, image_size],
             requires_grad=False,
-            cuda=next(iter(model.parameters())).is_cuda
+            cuda=use_cuda
         )
         
         outputs = model(input_tensor)
@@ -53,8 +53,14 @@ def evaluate(model, dataloader, criterion, num_classes, channels=3, image_size=3
         loss = loss_tensor.data[0]
         total_loss += loss
         
+        # Get raw data from output tensor
+        # Assuming outputs is [batch_size, num_classes]
+        out_data = outputs.data
+        
         for i in range(batch_size):
-            max_idx = max(range(num_classes), key=lambda j: outputs.data[i * num_classes + j])
+            # Extract row for this sample
+            row = out_data[i * num_classes : (i + 1) * num_classes]
+            max_idx = row.index(max(row))
             true_label = labels[i]
             
             if max_idx == true_label:
@@ -64,8 +70,8 @@ def evaluate(model, dataloader, criterion, num_classes, channels=3, image_size=3
             total += 1
             class_total[true_label] += 1
     
-    avg_loss = total_loss / len(dataloader)
-    accuracy = 100. * correct / total
+    avg_loss = total_loss / len(dataloader) if len(dataloader) > 0 else 0
+    accuracy = 100. * correct / total if total > 0 else 0
     
     # Calculate per-class accuracies
     class_accuracies = {}
@@ -137,6 +143,17 @@ def main():
     
     # 3. Build model
     model, built_config = build_model_from_config(config, num_classes)
+
+    # Detect and use CUDA if available
+    try:
+        use_cuda = backend.is_cuda_available()
+    except:
+        use_cuda = False
+    
+    print(f"\nCUDA status: {'enabled' if use_cuda else 'disabled (CPU only)'}")
+    if use_cuda:
+        print("Moving model to CUDA...")
+        model.cuda()
     
     # Calculate and print model stats
     stats = calculate_model_stats(
@@ -158,7 +175,7 @@ def main():
     print("=" * 70)
     
     criterion = backend.CrossEntropyLoss()
-    loss, accuracy, class_accuracies = evaluate(model, dataloader, criterion, num_classes, channels, image_size)
+    loss, accuracy, class_accuracies = evaluate(model, dataloader, criterion, num_classes, use_cuda, channels, image_size)
     
     print(f"\nOverall Results:")
     print(f"  Loss: {loss:.4f}")
