@@ -12,7 +12,18 @@
 #include "cuda/cuda_utils.hpp"
 #include <cuda_runtime.h>
 #endif
+
 namespace deepnet {
+
+// Global generator for CPU randomness
+std::mt19937 &get_generator() {
+  static std::mt19937 gen(std::random_device{}());
+  return gen;
+}
+
+void manual_seed(unsigned int seed) {
+  get_generator().seed(seed);
+}
 
 // Autograd function implementations
 struct AddBackward : public AutogradFunction {
@@ -295,9 +306,8 @@ TensorPtr Tensor::ones(const std::vector<int> &shape, bool requires_grad,
 TensorPtr Tensor::randn(const std::vector<int> &shape, float mean, float std,
                         bool requires_grad, bool cuda) {
   auto tensor = std::make_shared<Tensor>(shape, requires_grad, false);
-  static std::random_device rd;
-  static std::mt19937 gen(rd());
   std::normal_distribution<float> dist(mean, std);
+  auto &gen = get_generator();
   for (auto &val : tensor->data) {
     val = dist(gen);
   }

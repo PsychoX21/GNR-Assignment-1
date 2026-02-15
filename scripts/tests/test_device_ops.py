@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'deepnet'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'Release'))
 import deepnet_backend as deepnet
+from deepnet.python.utils import seed_everything
 
 def check_close(cpu_tensor, gpu_tensor, tol=1e-4, name="Tensor"):
     if cpu_tensor.shape != gpu_tensor.shape:
@@ -131,10 +132,7 @@ def test_loss(loss_class, input_shape, target_data):
     print("  OK")
 
 def main():
-    if not deepnet.is_cuda_available():
-        print("CUDA not available, skipping GPU tests.")
-        return
-
+    seed_everything(42)
     print("=== Verifying All Devices ===")
     
     # Activations

@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'build'))
 import deepnet_backend as backend
 from deepnet.python.data import ImageFolderDataset, DataLoader
 from deepnet.python.models import build_model_from_config, calculate_model_stats, save_checkpoint
+from deepnet.python.utils import seed_everything
 
 def flatten_batch(images):
     flat = []
@@ -145,6 +146,11 @@ def main():
 
     args = parser.parse_args()
 
+    # Set seed for determinism
+    seed = 42
+    seed_everything(seed)
+    print(f"Set random seed: {seed}")
+
     # Setup directories
     checkpoint_dir = Path(args.checkpoint_dir)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -170,9 +176,10 @@ def main():
     augmentation = data_config.get('augmentation', {})
 
     batch_size = args.batch_size or training_config.get('batch_size', 64)
+    epochs = training_config.get('epochs', args.epochs)
 
     print(f"Image size: {image_size}x{image_size}, "
-          f"Channels: {channels}, Batch size: {batch_size}")
+          f"Channels: {channels}, Batch size: {batch_size}, Epochs: {epochs}")
 
     # ------------------------------
     # Load dataset
@@ -246,7 +253,8 @@ def main():
             params,
             lr=lr,
             momentum=training_config.get('momentum', 0.9),
-            weight_decay=training_config.get('weight_decay', 0.0001)
+            weight_decay=training_config.get('weight_decay', 0.0001),
+            nesterov=training_config.get('nesterov', False)
         )
     else:
         optimizer = backend.Adam(
@@ -301,7 +309,7 @@ def main():
 
     best_val_acc = 0.0
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(1, epochs + 1):
 
         start = time.time()
 
@@ -323,7 +331,7 @@ def main():
             optimizer.set_lr(new_lr)
 
         print(f"\n{'='*70}")
-        print(f"Epoch {epoch}/{args.epochs}")
+        print(f"Epoch {epoch}/{epochs}")
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
         print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
         print(f"Time: {epoch_time:.2f}s")

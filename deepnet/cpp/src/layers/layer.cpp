@@ -376,7 +376,7 @@ TensorPtr Dropout::forward(const TensorPtr &input) {
   if (input->is_cuda) {
       std::vector<float> mask_cpu(input->numel());
       std::bernoulli_distribution dist(1.0f - p);
-      static std::mt19937 gen(time(NULL));
+      auto &gen = deepnet::get_generator();
       for (size_t i = 0; i < mask_cpu.size(); ++i) {
           mask_cpu[i] = dist(gen) ? 1.0f : 0.0f;
       }
@@ -392,7 +392,7 @@ TensorPtr Dropout::forward(const TensorPtr &input) {
   // CPU Implementation
   mask = Tensor::zeros(input->shape, false, false);
   std::bernoulli_distribution dist(1.0f - p);
-  static std::mt19937 gen(std::random_device{}());
+  auto &gen = deepnet::get_generator();
   
   for (int i = 0; i < (int)mask->data.size(); ++i) {
       mask->data[i] = dist(gen) ? 1.0f : 0.0f;

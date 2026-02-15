@@ -1,6 +1,8 @@
 """
 Data loading utilities with train/val split support
-Optimized: Preloads dataset into RAM for fast GPU training.
+Optimized Hybrid Version:
+- Images preloaded + resized + normalized once
+- Augmentation applied dynamically per __getitem__
 """
 
 import cv2
@@ -34,17 +36,19 @@ def ensure_dataset_extracted(dataset_name):
 
 
 # ==========================================================
-# ImageFolderDataset (Preloaded Version)
+# ImageFolderDataset (Hybrid Version)
 # ==========================================================
 
 class ImageFolderDataset:
     """
-    Folder dataset with full RAM preload.
-    All images are processed once in __init__.
-    __getitem__ becomes O(1).
+    Hybrid design:
+    - Disk I/O happens once
+    - Resize + RGB conversion happens once
+    - Augmentation happens dynamically in __getitem__
     """
 
-    def __init__(self, root_dir,
+    def __init__(self,
+                 root_dir,
                  image_size=32,
                  channels=3,
                  train=True,
@@ -65,6 +69,7 @@ class ImageFolderDataset:
         self.classes = sorted(
             [d.name for d in self.root_dir.iterdir() if d.is_dir()]
         )
+
         self.class_to_idx = {
             cls: idx for idx, cls in enumerate(self.classes)
         }
@@ -82,10 +87,7 @@ class ImageFolderDataset:
                 if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
                     all_samples.append((str(img_path), class_idx))
 
-        # --------------------------
-        # Split
-        # --------------------------
-        random.seed(seed)
+        # random.seed(seed)  # Disabled to use global seed from seed_everything
         random.shuffle(all_samples)
 
         split_idx = int(len(all_samples) * (1 - val_split))
@@ -99,17 +101,17 @@ class ImageFolderDataset:
               f"{'train' if train else 'val'} samples...")
 
         # --------------------------
-        # Preload Into RAM
+        # Preload Base Images
         # --------------------------
-        self.data = []
+        self.base_images = []
         self.labels = []
 
-        append_data = self.data.append
-        append_label = self.labels.append
+        append_img = self.base_images.append
+        append_lbl = self.labels.append
 
         for img_path, label in self.samples:
 
-            # Load image
+            # Load image once
             if self.channels == 1:
                 img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
             else:
@@ -118,46 +120,49 @@ class ImageFolderDataset:
             if img is None:
                 raise ValueError(f"Failed to load image: {img_path}")
 
-            # Resize
+            # Resize once
             img = cv2.resize(img, (self.image_size, self.image_size))
 
-            # Convert BGR -> RGB
+            # Convert BGR → RGB once
             if self.channels == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-            # Augmentation (only once during preload)
-            if self.train and self.augmentation.get('enabled', False):
-                img = self._augment(img)
+            append_img(img)
+            append_lbl(label)
 
-            # Normalize (OpenCV uses NumPy internally — allowed)
-            img = img.astype('float32')
-            img /= 255.0
-
-            # Convert HWC → CHW efficiently
-            if self.channels == 1:
-                img_list = img.flatten().tolist()
-            else:
-                ch = cv2.split(img)
-                img_list = []
-                img_list.extend(ch[0].flatten().tolist())
-                img_list.extend(ch[1].flatten().tolist())
-                img_list.extend(ch[2].flatten().tolist())
-
-            append_data(img_list)
-            append_label(label)
-
-        print(f"Preload complete. "
-              f"{len(self.data)} samples in RAM.")
+        print(f"Preload complete. {len(self.base_images)} images in RAM.")
 
     # --------------------------
     # Dataset Interface
     # --------------------------
 
     def __len__(self):
-        return len(self.data)
+        return len(self.base_images)
 
     def __getitem__(self, idx):
-        return self.data[idx], self.labels[idx]
+
+        img = self.base_images[idx]
+        label = self.labels[idx]
+
+        # Apply augmentation dynamically
+        if self.train and self.augmentation.get('enabled', False):
+            img = self._augment(img.copy())
+
+        # Normalize (lightweight)
+        img = img.astype('float32')
+        img /= 255.0
+
+        # Convert HWC → CHW
+        if self.channels == 1:
+            img_list = img.flatten().tolist()
+        else:
+            ch = cv2.split(img)
+            img_list = []
+            img_list.extend(ch[0].flatten().tolist())
+            img_list.extend(ch[1].flatten().tolist())
+            img_list.extend(ch[2].flatten().tolist())
+
+        return img_list, label
 
     # --------------------------
     # Augmentation
@@ -173,7 +178,7 @@ class ImageFolderDataset:
         if self.augmentation.get('rotate', True):
             angle = random.uniform(-15, 15)
             h, w = img.shape[:2]
-            M = cv2.getRotationMatrix2D((w/2, h/2), angle, 1.0)
+            M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
             img = cv2.warpAffine(img, M, (w, h))
 
         # Brightness / Contrast
@@ -196,10 +201,6 @@ class ImageFolderDataset:
 # ==========================================================
 
 class DataLoader:
-    """
-    Simple, lightweight DataLoader.
-    Now very fast because dataset is preloaded.
-    """
 
     def __init__(self, dataset, batch_size=32, shuffle=True):
         self.dataset = dataset
@@ -211,6 +212,7 @@ class DataLoader:
         return (self.num_samples + self.batch_size - 1) // self.batch_size
 
     def __iter__(self):
+
         indices = list(range(self.num_samples))
 
         if self.shuffle:

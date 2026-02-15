@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,8 @@
 #endif
 
 namespace deepnet {
+void manual_seed(unsigned int seed);
+std::mt19937 &get_generator();
 
 class Tensor;
 using TensorPtr = std::shared_ptr<Tensor>;

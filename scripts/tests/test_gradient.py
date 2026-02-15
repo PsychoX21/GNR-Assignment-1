@@ -5,8 +5,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'Release'))
 
 import deepnet_backend as backend
+from deepnet.python.utils import seed_everything
 
 print("=== Quick Gradient Check ===\n")
+seed_everything(42)
 
 # Create a tiny 2-layer MLP: Linear(4, 8) -> ReLU -> Linear(8, 3)
 linear1 = backend.Linear(4, 8, True)

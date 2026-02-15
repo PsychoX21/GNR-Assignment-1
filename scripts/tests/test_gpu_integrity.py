@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(project_root, 'deepnet'))
 
 try:
     import deepnet_backend as backend
+    from deepnet.python.utils import seed_everything
     from deepnet.python.module import Sequential, Conv2DWrapper, LinearWrapper, \
                                        ReLUWrapper, BatchNorm2DWrapper, DropoutWrapper, \
                                        FlattenWrapper, ResidualBlockWrapper, GlobalAvgPool2DWrapper, \
@@ -47,7 +48,8 @@ def check_tensor(t, name, expected_shape=None, should_be_cuda=True):
     # If it was CUDA, it should still be CUDA
     assert t.is_cuda == should_be_cuda, f"{name} device changed after data access"
 
-def test_complex_gpu_pipeline():
+def test_gpu_pipeline():
+    seed_everything(42)
     print("\n=== Testing Complex GPU Pipeline ===")
     
     if not backend.is_cuda_available():
@@ -144,4 +146,4 @@ def test_complex_gpu_pipeline():
     print("\n[PASS] GPU Complex Integrity Test Successful")
 
 if __name__ == "__main__":
-    test_complex_gpu_pipeline()
+    test_gpu_pipeline()

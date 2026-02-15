@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build'))
 
 try:
     import deepnet_backend as backend
+    from deepnet.python.utils import seed_everything
 except ImportError:
     print("Error: Could not import deepnet_backend. Please build the project first.")
     sys.exit(1)
@@ -189,6 +190,7 @@ def test_batchnorm():
     print("  [OK] BN Backward")
 
 def main():
+    seed_everything(42)
     print("=== Extended CUDA Ops Verification ===")
     if not backend.is_cuda_available():
         print("WARNING: CUDA is not available. Tests will be skipped.")

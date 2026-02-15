@@ -272,4 +272,7 @@ PYBIND11_MODULE(deepnet_backend, m) {
   // CUDA utilities
   m.def("is_cuda_available", &cuda::is_cuda_available,
         "Check if CUDA GPU is available");
+
+  // Seeding
+  m.def("manual_seed", &deepnet::manual_seed, "Set seed for C++ backend randomness");
 }

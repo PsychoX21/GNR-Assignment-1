@@ -146,7 +146,7 @@ eval:
 		--config $(CONFIG)
 
 # Run all tests
-test: test-layers test-gradient test-cuda test-cuda-ops test-device-ops test-gpu-integrity
+test: test-layers test-gradient test-cuda test-cuda-ops test-device-ops test-gpu-integrity test-determinism
 	@echo ""
 	@echo "=== All tests completed ==="
 
@@ -174,6 +174,10 @@ test-device-ops:
 test-gpu-integrity:
 	@echo "Running GPU Integrity tests..."
 	$(PYTHON) scripts/tests/test_gpu_integrity.py
+
+test-determinism:
+	@echo "Running Determinism tests..."
+	$(PYTHON) scripts/tests/test_determinism.py
 
 # Clean build artifacts
 clean:

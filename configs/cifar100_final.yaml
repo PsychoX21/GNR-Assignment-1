@@ -1,0 +1,110 @@
+model:
+  name: "ResNet18_CIFAR100"
+  architecture:
+    # ---------------------------------------------------------
+    # Stem: Initial processing (32x32 input)
+    # We use 3x3 convolution (stride 1) instead of 7x7 (stride 2)
+    # to preserve spatial resolution for the small CIFAR images.
+    # ---------------------------------------------------------
+    - type: "Conv2D"
+      in_channels: 3
+      out_channels: 64
+      kernel_size: 3
+      stride: 1
+      padding: 1
+      bias: false  # Bias is redundant before BatchNorm
+
+    - type: "BatchNorm2D"
+      num_features: 64
+
+    - type: "ReLU"
+
+    # ---------------------------------------------------------
+    # Stage 1: 64 channels (32x32 spatial)
+    # ---------------------------------------------------------
+    - type: "ResidualBlock"
+      in_channels: 64
+      out_channels: 64
+      stride: 1
+
+    - type: "ResidualBlock"
+      in_channels: 64
+      out_channels: 64
+      stride: 1
+
+    # ---------------------------------------------------------
+    # Stage 2: 64 -> 128 channels (Downsample to 16x16)
+    # ---------------------------------------------------------
+    - type: "ResidualBlock"
+      in_channels: 64
+      out_channels: 128
+      stride: 2  # Downsample here
+
+    - type: "ResidualBlock"
+      in_channels: 128
+      out_channels: 128
+      stride: 1
+
+    # ---------------------------------------------------------
+    # Stage 3: 128 -> 256 channels (Downsample to 8x8)
+    # ---------------------------------------------------------
+    - type: "ResidualBlock"
+      in_channels: 128
+      out_channels: 256
+      stride: 2  # Downsample here
+
+    - type: "ResidualBlock"
+      in_channels: 256
+      out_channels: 256
+      stride: 1
+
+    # ---------------------------------------------------------
+    # Stage 4: 256 -> 512 channels (Downsample to 4x4)
+    # ---------------------------------------------------------
+    - type: "ResidualBlock"
+      in_channels: 256
+      out_channels: 512
+      stride: 2  # Downsample here
+
+    - type: "ResidualBlock"
+      in_channels: 512
+      out_channels: 512
+      stride: 1
+
+    # ---------------------------------------------------------
+    # Classifier Head
+    # Global Average Pooling averages the 4x4 feature map to 1x1
+    # ---------------------------------------------------------
+    - type: "GlobalAveragePooling2D"
+
+    - type: "Flatten"
+
+    - type: "Linear"
+      in_features: 512
+      out_features: "num_classes"
+
+training:
+  epochs: 100  # ResNets need longer training
+  batch_size: 128
+  learning_rate: 0.1
+  optimizer: "SGD"
+  weight_decay: 0.0005  # Crucial for Regularization on CIFAR-100
+  momentum: 0.9       # Required for SGD
+  nesterov: true      # Available in your SGD binding
+  
+  # Cosine Annealing is the best scheduler for this
+  # It decreases LR following a cosine curve
+  scheduler:
+    type: "CosineAnnealingLR"
+    T_max: 100        # Should match total epochs
+    eta_min: 0.00001  # Minimum LR
+
+data:
+  image_size: 32
+  channels: 3
+  augmentation:
+    enabled: true     # Highly recommended for CIFAR-100
+
+device:
+  use_cuda: true
+  device_id: 0

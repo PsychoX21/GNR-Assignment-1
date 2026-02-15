@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'build'))
 import deepnet_backend as backend
 from deepnet.python.data import ImageFolderDataset, DataLoader, ensure_dataset_extracted
 from deepnet.python.models import build_model_from_config, load_checkpoint
+from deepnet.python.utils import seed_everything
 import time
 
 def flatten_batch(images):
@@ -43,7 +44,8 @@ def evaluate(model, dataloader, criterion, num_classes):
         input_tensor = backend.Tensor.from_data(
             batch_images,
             [batch_size, 3, 32, 32],
-            requires_grad=False
+            requires_grad=False,
+            cuda=next(model.parameters()).is_cuda
         )
         
         outputs = model(input_tensor)
@@ -84,6 +86,11 @@ def main():
     parser.add_argument('--batch-size', type=int, default=64)
     
     args = parser.parse_args()
+    
+    # Set seed for determinism
+    seed = 42
+    seed_everything(seed)
+    print(f"Set random seed: {seed}")
     
     print("=" * 70)
     print("DeepNet Evaluation")

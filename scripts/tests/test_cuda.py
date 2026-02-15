@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'deepnet'
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'Release'))
 
 import deepnet_backend as backend
+from deepnet.python.utils import seed_everything
 
 
 def test_cuda_availability():
@@ -197,6 +198,7 @@ def test_performance():
 
 
 def main():
+    seed_everything(42)
     print("=" * 50)
     print("=== CUDA GPU Acceleration Tests ===")
     print("=" * 50)

@@ -1,0 +1,121 @@
+# CIFAR-100 - ResNet-20 Config
+# Designed specifically for 32x32 inputs (He et al.)
+# Total Layers: 1 (stem) + 6n + 6n + 6n + 1 (fc) = 6n + 2
+# For ResNet-20, n=3.
+
+model:
+  name: "ResNet20_CIFAR100"
+  architecture:
+    # ---------------------------------------------------------
+    # Stem: 3x3 Conv. Keeps size 32x32. 
+    # (Unlike ImageNet ResNet which does 7x7 stride 2 here)
+    # ---------------------------------------------------------
+    - type: "Conv2D"
+      in_channels: 3
+      out_channels: 16
+      kernel_size: 3
+      stride: 1
+      padding: 1
+      bias: false 
+    
+    - type: "BatchNorm2D"
+      num_features: 16
+    
+    - type: "ReLU"
+    
+    # ---------------------------------------------------------
+    # Stage 1: 16 channels (32x32)
+    # 3 Residual Blocks
+    # ---------------------------------------------------------
+    - type: "ResidualBlock"
+      in_channels: 16
+      out_channels: 16
+      stride: 1
+    
+    - type: "ResidualBlock"
+      in_channels: 16
+      out_channels: 16
+      stride: 1
+    
+    - type: "ResidualBlock"
+      in_channels: 16
+      out_channels: 16
+      stride: 1
+
+    # ---------------------------------------------------------
+    # Stage 2: 16 -> 32 channels (Downsample to 16x16)
+    # 3 Residual Blocks
+    # ---------------------------------------------------------
+    # First block increases channels and strides
+    - type: "ResidualBlock"
+      in_channels: 16
+      out_channels: 32
+      stride: 2
+    
+    - type: "ResidualBlock"
+      in_channels: 32
+      out_channels: 32
+      stride: 1
+    
+    - type: "ResidualBlock"
+      in_channels: 32
+      out_channels: 32
+      stride: 1
+
+    # ---------------------------------------------------------
+    # Stage 3: 32 -> 64 channels (Downsample to 8x8)
+    # 3 Residual Blocks
+    # ---------------------------------------------------------
+    - type: "ResidualBlock"
+      in_channels: 32
+      out_channels: 64
+      stride: 2
+    
+    - type: "ResidualBlock"
+      in_channels: 64
+      out_channels: 64
+      stride: 1
+    
+    - type: "ResidualBlock"
+      in_channels: 64
+      out_channels: 64
+      stride: 1
+
+    # ---------------------------------------------------------
+    # Classifier Head
+    # Global Avg Pool takes 8x8 -> 1x1
+    # ---------------------------------------------------------
+    - type: "GlobalAveragePooling2D"
+    
+    - type: "Flatten"
+    
+    - type: "Linear"
+      in_features: 64
+      out_features: "num_classes"
+
+training:
+  epochs: 160         # ResNets converge slowly
+  batch_size: 128
+  learning_rate: 0.1
+  optimizer: "SGD"
+  weight_decay: 0.0001 # Standard for ResNet-20
+  momentum: 0.9
+  nesterov: true
+  
+  # Standard schedule for CIFAR ResNet-20: 
+  # Start 0.1, divide by 10 at 32k/48k iters (approx epoch 80/120)
+  # But Cosine is easier and often better.
+  scheduler:
+    type: "CosineAnnealingLR"
+    T_max: 160
+    eta_min: 0.00001
+
+data:
+  image_size: 32
+  channels: 3
+  augmentation:
+    enabled: true     # Mandatory for ResNet on CIFAR
+
+device:
+  use_cuda: true
+  device_id: 0

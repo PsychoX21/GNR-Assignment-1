@@ -5,6 +5,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'Release'))
 
 import deepnet_backend as backend
+from deepnet.python.utils import seed_everything
+
+seed_everything(42)
 
 def test_layer(name, forward_fn, backward_fn, input_shape, requires_param_check=False, params=None):
     """Test a single layer's forward and backward."""
