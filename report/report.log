@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.1.26)  16 FEB 2026 18:37
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.1.26)  16 FEB 2026 18:51
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -445,103 +445,114 @@ Package hyperref Info: Link coloring OFF on input line 19.
  [1
 
 {C:/Users/khand/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}] [2]
-<images/MNIST_real_loss.png, id=108, 867.24pt x 578.16pt>
+<images/MNIST_real_loss.png, id=128, 867.24pt x 578.16pt>
 File: images/MNIST_real_loss.png Graphic file (type png)
 <use images/MNIST_real_loss.png>
-Package pdftex.def Info: images/MNIST_real_loss.png  used on input line 115.
+Package pdftex.def Info: images/MNIST_real_loss.png  used on input line 122.
 (pdftex.def)             Requested size: 362.37569pt x 241.58163pt.
-<images/MNIST_real_acc.png, id=110, 867.24pt x 578.16pt>
+<images/MNIST_real_acc.png, id=130, 867.24pt x 578.16pt>
 File: images/MNIST_real_acc.png Graphic file (type png)
 <use images/MNIST_real_acc.png>
-Package pdftex.def Info: images/MNIST_real_acc.png  used on input line 120.
+Package pdftex.def Info: images/MNIST_real_acc.png  used on input line 127.
 (pdftex.def)             Requested size: 362.37569pt x 241.58163pt.
  [3
 pdfTeX warning (ext4): destination with the same identifier (name{table.1}) has
  been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.122 \end{figure}
+l.129 \end{figure}
                   ]
-<images/CIFAR100_real_loss.png, id=116, 867.24pt x 578.16pt>
+<images/CIFAR100_real_loss.png, id=136, 867.24pt x 578.16pt>
 File: images/CIFAR100_real_loss.png Graphic file (type png)
 <use images/CIFAR100_real_loss.png>
-Package pdftex.def Info: images/CIFAR100_real_loss.png  used on input line 126.
+Package pdftex.def Info: images/CIFAR100_real_loss.png  used on input line 133.
 
 (pdftex.def)             Requested size: 362.37569pt x 241.58163pt.
-<images/CIFAR100_real_acc.png, id=117, 867.24pt x 578.16pt>
+<images/CIFAR100_real_acc.png, id=137, 867.24pt x 578.16pt>
 File: images/CIFAR100_real_acc.png Graphic file (type png)
 <use images/CIFAR100_real_acc.png>
-Package pdftex.def Info: images/CIFAR100_real_acc.png  used on input line 131.
+Package pdftex.def Info: images/CIFAR100_real_acc.png  used on input line 138.
 (pdftex.def)             Requested size: 362.37569pt x 241.58163pt.
  [4
 pdfTeX warning (ext4): destination with the same identifier (name{figure.1}) ha
 s been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.133 \end{figure}
+l.140 \end{figure}
                   
 pdfTeX warning (ext4): destination with the same identifier (name{figure.2}) ha
 s been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.133 \end{figure}
+l.140 \end{figure}
                    <./images/MNIST_real_loss.png> <./images/MNIST_real_acc.png>
 ] [5
 pdfTeX warning (ext4): destination with the same identifier (name{figure.3}) ha
 s been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.143     \item \textbf
+l.150     \item \textbf
                        {Overfitting}: With 11 million parameters, the model ...
 
 pdfTeX warning (ext4): destination with the same identifier (name{figure.4}) ha
 s been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.143     \item \textbf
+l.150     \item \textbf
                        {Overfitting}: With 11 million parameters, the model ...
  <./images/CIFAR100_real_loss.png> <./images/CIFAR100_real_acc.png>] [6]
-Overfull \hbox (134.90741pt too wide) in paragraph at lines 184--185
+Overfull \hbox (134.90741pt too wide) in paragraph at lines 203--204
 []\OT1/cmr/bx/n/10.95 MNIST Bench-mark\OT1/cmr/m/n/10.95 : []$\OT1/cmtt/m/n/10.
 95 https : / / www . kaggle . com / code / paulbacher / mnist-[]99-[]6-[]accura
 cy-[]top-[]10-[]leaderboard$[] 
  []
 
 
-Overfull \hbox (96.20174pt too wide) in paragraph at lines 185--186
+Overfull \hbox (96.20174pt too wide) in paragraph at lines 204--205
 []\OT1/cmr/bx/n/10.95 ResNet-20 on CIFAR-100\OT1/cmr/m/n/10.95 : []$\OT1/cmtt/m
 /n/10.95 https : / / www . kaggle . com / code / nikitabreskanu / resnet-[]20-[
 ]on-[]cifar-[]100$[] 
  []
 
-[7] (report.aux)
+[7] [8] (report.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2025-12-29>
  ***********
-Package rerunfilecheck Info: File `report.out' has not changed.
-(rerunfilecheck)             Checksum: A3EF2AE04CBF35F56BF245FAD57D66B3;3715.
+
+
+Package rerunfilecheck Warning: File `report.out' has changed.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+Package rerunfilecheck Info: Checksums for `report.out':
+(rerunfilecheck)             Before: 3AFFB6D220633989431690E1C66974F0;4828
+(rerunfilecheck)             After:  67E1DB06D0C706096E5C33DBA4B5C925;4662.
  ) 
 Here is how much of TeX's memory you used:
- 11316 strings out of 467871
- 175136 string characters out of 5418376
- 598969 words of memory out of 5000000
- 40030 multiletter control sequences out of 15000+600000
+ 11323 strings out of 467871
+ 175260 string characters out of 5418376
+ 598972 words of memory out of 5000000
+ 40035 multiletter control sequences out of 15000+600000
  634606 words of font info for 64 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,8n,79p,554b,539s stack positions out of 10000i,1000n,20000p,200000b,200000s
- <C:\Users\khand\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcrm
-1095.pk><C:/Users/khand/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfon
-ts/cm/cmbx10.pfb><C:/Users/khand/AppData/Local/Programs/MiKTeX/fonts/type1/publ
-ic/amsfonts/cm/cmbx12.pfb><C:/Users/khand/AppData/Local/Programs/MiKTeX/fonts/t
-ype1/public/amsfonts/cm/cmmi10.pfb><C:/Users/khand/AppData/Local/Programs/MiKTe
-X/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/khand/AppData/Local/Progra
-ms/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/khand/AppData/Loca
-l/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/khand/App
-Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb>
-Output written on report.pdf (7 pages, 985773 bytes).
+ 75i,8n,79p,554b,535s stack positions out of 10000i,1000n,20000p,200000b,200000s
+
+pdfTeX warning (dest): name{subsection.8.2} has been referenced but does not ex
+ist, replaced by a fixed one
+
+ <C:\Users\khand\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcrm10
+95.pk><C:/Users/khand/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts
+/cm/cmbx10.pfb><C:/Users/khand/AppData/Local/Programs/MiKTeX/fonts/type1/public
+/amsfonts/cm/cmbx12.pfb><C:/Users/khand/AppData/Local/Programs/MiKTeX/fonts/typ
+e1/public/amsfonts/cm/cmmi10.pfb><C:/Users/khand/AppData/Local/Programs/MiKTeX/
+fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/khand/AppData/Local/Programs
+/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/khand/AppData/Local/
+Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/khand/AppDa
+ta/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb>
+Output written on report.pdf (8 pages, 990557 bytes).
 PDF statistics:
- 198 PDF objects out of 1000 (max. 8388607)
- 41 named destinations out of 1000 (max. 500000)
- 197 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 219 PDF objects out of 1000 (max. 8388607)
+ 43 named destinations out of 1000 (max. 500000)
+ 237 words of extra memory for PDF output out of 10000 (max. 10000000)
 
