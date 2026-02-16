@@ -140,7 +140,7 @@ def main():
     print(f"  Image properties: {image_size}x{image_size}, {channels} channels")
     dataset_start = time.time()
     
-    dataset = ImageFolderDataset(args.dataset, image_size=image_size, train=False, val_split=args.val_split)
+    dataset = ImageFolderDataset(args.dataset, image_size=image_size, channels=channels, train=False, val_split=args.val_split)
     
     dataset_load_time = time.time() - dataset_start
     print(f"Dataset loading time: {dataset_load_time:.2f} seconds")

@@ -1291,33 +1291,26 @@ void Tensor::copy_(const TensorPtr &other) {
     throw std::runtime_error("copy_ expects same shape");
   }
   
-  // Update requires_grad? PyTorch doesn't, usually. 
-  
 #ifdef USE_CUDA
-  if (is_cuda && other->is_cuda) {
-      cuda::cuda_memcpy_device_to_device(d_data, other->d_data, numel() * sizeof(float));
-      cuda_dirty = true;
-      cpu_dirty = false; // Invalidated
-  } else if (is_cuda && !other->is_cuda) {
-      // Host to Device
-      cuda::cuda_memcpy_host_to_device(d_data, other->data.data(), numel() * sizeof(float));
+  if (is_cuda) {
+      if (!d_data) allocate_device_memory();
+      
+      if (other->is_cuda) {
+          cuda::cuda_memcpy_device_to_device(d_data, other->d_data, numel() * sizeof(float));
+      } else {
+          cuda::cuda_memcpy_host_to_device(d_data, other->data.data(), numel() * sizeof(float));
+      }
       cuda_dirty = true;
       cpu_dirty = false;
-  } else if (!is_cuda && other->is_cuda) {
-      // Device to Host
-      // other needs to sync first? No, we access other's device pointer
-      // But other->d_data might be stale if other is dirty on CPU?
-      // Check other's state. 
-      // Safest: access property that ensures sync?
-      // other->data_ptr() handles sync?
-      // No, data_ptr() returns raw pointer.
-      // If other is cuda, d_data should be valid unless cpu_dirty is true?
-      // Let's assume typical usage or force sync on other if needed.
-      // But we can just use cuda_memcpy_device_to_host
-      cuda::cuda_memcpy_device_to_host(data.data(), other->d_data, numel() * sizeof(float));
   } else {
-      // CPU to CPU
-      data = other->data;
+      if (other->is_cuda) {
+          if (data.empty()) data.resize(numel());
+          cuda::cuda_memcpy_device_to_host(data.data(), other->d_data, numel() * sizeof(float));
+      } else {
+          data = other->data;
+      }
+      cpu_dirty = true;
+      cuda_dirty = false;
   }
 #else
   if (other->is_cuda) {
@@ -1485,57 +1478,56 @@ void Tensor::free_device_memory() {
 
 void Tensor::sync_to_cpu() {
   if (!is_cuda || !d_data) {
-     // If it's already a CPU tensor, ensure data is resized if empty
      if (data.empty() && numel() > 0) data.resize(numel(), 0.0f);
      return;
   }
   
-  // If not cuda_dirty, it's already in sync (CPU == GPU)
-  // EXCEPT if CPU vector is empty, we must sync anyway.
-  if (!cuda_dirty && !data.empty() && (!requires_grad || !grad.empty())) return;
-
-  int total_size = numel();
-  if (total_size == 0) return;
-  
-  if (data.size() != (size_t)total_size) {
-    data.resize(total_size);
-  }
-  
-  cuda::cuda_memcpy_device_to_host(data.data(), d_data, total_size * sizeof(float));
-  if (requires_grad && d_grad) { // Only sync grad if it exists on device
-    if (grad.size() != (size_t)total_size) {
-      grad.resize(total_size);
+  // Sync if GPU data is dirty (modified)
+  if (cuda_dirty || data.empty()) {
+    int total_size = numel();
+    if (total_size == 0) return;
+    
+    if (data.size() != (size_t)total_size) {
+      data.resize(total_size);
     }
-    cuda::cuda_memcpy_device_to_host(grad.data(), d_grad, total_size * sizeof(float));
+    
+    cuda::cuda_memcpy_device_to_host(data.data(), d_data, total_size * sizeof(float));
+    
+    if (requires_grad && d_grad && (cuda_dirty || grad.empty())) {
+      if (grad.size() != (size_t)total_size) {
+        grad.resize(total_size);
+      }
+      cuda::cuda_memcpy_device_to_host(grad.data(), d_grad, total_size * sizeof(float));
+    }
+    
+    cuda_dirty = false;
   }
-  
-  cuda_dirty = false; // CPU is now up-to-date with GPU
 }
 
 void Tensor::sync_to_cuda() {
   if (!is_cuda) return;
   if (!d_data) allocate_device_memory();
   
-  // If not cpu_dirty, it's already in sync.
-  // EXCEPT if CUDA memory is uninitialized or stale (d_data is null or cuda_dirty is true)
-  if (!cpu_dirty && d_data && !cuda_dirty && (!requires_grad || d_grad)) return;
-
-  int total_size = numel();
-  if (total_size == 0) return;
-  
-  if (data.size() != (size_t)total_size) {
-    data.resize(total_size, 0.0f);
-  }
-  
-  cuda::cuda_memcpy_host_to_device(d_data, data.data(), total_size * sizeof(float));
-  if (requires_grad && d_grad) { // Only sync grad if it exists on CPU
-    if (grad.size() != (size_t)total_size) {
-      grad.resize(total_size, 0.0f);
+  // Sync if CPU data is dirty (modified)
+  if (cpu_dirty) {
+    int total_size = numel();
+    if (total_size == 0) return;
+    
+    if (data.size() != (size_t)total_size) {
+      data.resize(total_size, 0.0f);
     }
-    cuda::cuda_memcpy_host_to_device(d_grad, grad.data(), total_size * sizeof(float));
+    
+    cuda::cuda_memcpy_host_to_device(d_data, data.data(), total_size * sizeof(float));
+    
+    if (requires_grad && d_grad) {
+      if (grad.size() != (size_t)total_size) {
+        grad.resize(total_size, 0.0f);
+      }
+      cuda::cuda_memcpy_host_to_device(d_grad, grad.data(), total_size * sizeof(float));
+    }
+    
+    cpu_dirty = false;
   }
-  
-  cpu_dirty = false; // GPU is now up-to-date with CPU
 }
 
 float *Tensor::data_ptr() {

@@ -152,4 +152,71 @@ void Adam::step() {
   }
 }
 
+// SGD Implementation Extensions
+std::map<std::string, std::vector<std::vector<float>>> SGD::state_dict() {
+    std::map<std::string, std::vector<std::vector<float>>> state;
+    if (momentum > 0.0f) {
+        std::vector<std::vector<float>> v_data;
+        for (auto &v : velocity) {
+            if (v->is_cuda) v->sync_to_cpu();
+            v_data.push_back(v->data);
+        }
+        state["velocity"] = v_data;
+    }
+    return state;
+}
+
+void SGD::load_state_dict(const std::map<std::string, std::vector<std::vector<float>>> &state) {
+    if (state.count("velocity") && momentum > 0.0f) {
+        auto &v_data = state.at("velocity");
+        for (size_t i = 0; i < std::min(v_data.size(), velocity.size()); ++i) {
+            velocity[i]->data = v_data[i];
+            velocity[i]->cpu_dirty = true;
+            if (velocity[i]->is_cuda) velocity[i]->sync_to_cuda();
+        }
+    }
+}
+
+// Adam Implementation Extensions
+std::map<std::string, std::vector<std::vector<float>>> Adam::state_dict() {
+    std::map<std::string, std::vector<std::vector<float>>> state;
+    std::vector<std::vector<float>> m_data, v_data;
+    for (auto &mt : m) {
+        if (mt->is_cuda) mt->sync_to_cpu();
+        m_data.push_back(mt->data);
+    }
+    for (auto &vt : v) {
+        if (vt->is_cuda) vt->sync_to_cpu();
+        v_data.push_back(vt->data);
+    }
+    state["m"] = m_data;
+    state["v"] = v_data;
+    
+    // Encode t as a vector of size 1
+    state["t"] = {{static_cast<float>(t)}};
+    return state;
+}
+
+void Adam::load_state_dict(const std::map<std::string, std::vector<std::vector<float>>> &state) {
+    if (state.count("m")) {
+        auto &m_data = state.at("m");
+        for (size_t i = 0; i < std::min(m_data.size(), m.size()); ++i) {
+            m[i]->data = m_data[i];
+            m[i]->cpu_dirty = true;
+            if (m[i]->is_cuda) m[i]->sync_to_cuda();
+        }
+    }
+    if (state.count("v")) {
+        auto &v_data = state.at("v");
+        for (size_t i = 0; i < std::min(v_data.size(), v.size()); ++i) {
+            v[i]->data = v_data[i];
+            v[i]->cpu_dirty = true;
+            if (v[i]->is_cuda) v[i]->sync_to_cuda();
+        }
+    }
+    if (state.count("t") && !state.at("t").empty() && !state.at("t")[0].empty()) {
+        t = static_cast<int>(state.at("t")[0][0]);
+    }
+}
+
 } // namespace deepnet

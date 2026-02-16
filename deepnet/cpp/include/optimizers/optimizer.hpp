@@ -3,6 +3,8 @@
 #include "../tensor.hpp"
 #include <memory>
 #include <vector>
+#include <map>
+#include <string>
 
 
 namespace deepnet {
@@ -16,6 +18,9 @@ public:
 
   virtual void set_lr(float lr) = 0;
   virtual float get_lr() = 0;
+
+  virtual std::map<std::string, std::vector<std::vector<float>>> state_dict() { return {}; }
+  virtual void load_state_dict(const std::map<std::string, std::vector<std::vector<float>>> &state) {}
 
   void add_parameters(const std::vector<TensorPtr> &params);
 
@@ -33,6 +38,9 @@ public:
   void set_lr(float lr) override { this->lr = lr; }
   float get_lr() override { return lr; }
 
+  std::map<std::string, std::vector<std::vector<float>>> state_dict() override;
+  void load_state_dict(const std::map<std::string, std::vector<std::vector<float>>> &state) override;
+
 private:
   float lr, momentum, weight_decay;
   bool nesterov;
@@ -49,6 +57,9 @@ public:
   void step() override;
   void set_lr(float lr) override { this->lr = lr; }
   float get_lr() override { return lr; }
+
+  std::map<std::string, std::vector<std::vector<float>>> state_dict() override;
+  void load_state_dict(const std::map<std::string, std::vector<std::vector<float>>> &state) override;
 
 private:
   float lr, beta1, beta2, eps, weight_decay;

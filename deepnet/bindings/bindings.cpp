@@ -32,6 +32,8 @@ PYBIND11_MODULE(deepnet_backend, m) {
         },
         [](Tensor &t, const std::vector<float> &v) {
             t.data = v;
+            t.cpu_dirty = true;
+            t.cuda_dirty = false;
             if (t.is_cuda) t.sync_to_cuda();
         })
       .def_property("grad",
@@ -41,6 +43,8 @@ PYBIND11_MODULE(deepnet_backend, m) {
         },
         [](Tensor &t, const std::vector<float> &v) {
             t.grad = v;
+            t.cpu_dirty = true;
+            t.cuda_dirty = false;
             if (t.is_cuda) t.sync_to_cuda();
         })
       .def_readwrite("shape", &Tensor::shape)
@@ -205,7 +209,9 @@ PYBIND11_MODULE(deepnet_backend, m) {
       .def("zero_grad", &Optimizer::zero_grad)
       .def("add_parameters", &Optimizer::add_parameters)
       .def("set_lr", &Optimizer::set_lr)
-      .def("get_lr", &Optimizer::get_lr);
+      .def("get_lr", &Optimizer::get_lr)
+      .def("state_dict", &Optimizer::state_dict)
+      .def("load_state_dict", &Optimizer::load_state_dict);
 
   py::class_<SGD, Optimizer, std::shared_ptr<SGD>>(m, "SGD")
       .def(
@@ -215,7 +221,9 @@ PYBIND11_MODULE(deepnet_backend, m) {
       .def("step", &SGD::step)
       .def("zero_grad", &SGD::zero_grad)
       .def("set_lr", &SGD::set_lr)
-      .def("get_lr", &SGD::get_lr);
+      .def("get_lr", &SGD::get_lr)
+      .def("state_dict", &SGD::state_dict)
+      .def("load_state_dict", &SGD::load_state_dict);
 
   py::class_<Adam, Optimizer, std::shared_ptr<Adam>>(m, "Adam")
       .def(py::init<const std::vector<TensorPtr> &, float, float, float, float,
@@ -226,7 +234,9 @@ PYBIND11_MODULE(deepnet_backend, m) {
       .def("step", &Adam::step)
       .def("zero_grad", &Adam::zero_grad)
       .def("set_lr", &Adam::set_lr)
-      .def("get_lr", &Adam::get_lr);
+      .def("get_lr", &Adam::get_lr)
+      .def("state_dict", &Adam::state_dict)
+      .def("load_state_dict", &Adam::load_state_dict);
 
   // Loss functions
   py::class_<CrossEntropyLoss>(m, "CrossEntropyLoss")

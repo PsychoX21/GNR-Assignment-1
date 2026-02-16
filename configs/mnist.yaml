@@ -94,7 +94,7 @@ model:
 # ==========================================================
 
 training:
-  epochs: 10
+  epochs: 20
   batch_size: 128
 
   optimizer: "SGD"
@@ -105,7 +105,7 @@ training:
 
   scheduler:
     type: "CosineAnnealingLR"
-    T_max: 10
+    T_max: 20
     eta_min: 0.0001
 
 # ==========================================================
