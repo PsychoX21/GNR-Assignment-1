@@ -34,7 +34,7 @@ endif
 
 # Configuration
 BUILD_DIR := build
-DATA ?= data_1
+DATA ?= datasets/data_1
 CONFIG ?= configs/mnist.yaml
 MODEL ?= checkpoints/best_$(DATA).pth
 EPOCHS ?= 50
@@ -76,8 +76,8 @@ help:
 	@echo "  make distclean      - Deep clean (also removes venv, pybind11)"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make train DATA=data_1 EPOCHS=50"
-	@echo "  make eval DATA=data_1 MODEL=checkpoints/best.pth"
+	@echo "  make train DATA=datasets/data_1 EPOCHS=50"
+	@echo "  make eval DATA=datasets/data_1 MODEL=checkpoints/best.pth"
 
 # Setup virtual environment
 setup:
@@ -134,14 +134,14 @@ endif
 train:
 	@echo "Training model on $(DATA)..."
 	$(PYTHON) scripts/train.py \
-		--dataset datasets/$(DATA) \
+		--dataset $(DATA) \
 		--config $(CONFIG) \
 		--epochs $(EPOCHS)
 
 eval:
 	@echo "Evaluating model on $(DATA) (split: $(VAL_SPLIT))..."
 	$(PYTHON) scripts/evaluate.py \
-		--dataset datasets/$(DATA) \
+		--dataset $(DATA) \
 		--checkpoint $(MODEL) \
 		--val-split $(VAL_SPLIT)
 

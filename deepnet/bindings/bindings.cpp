@@ -32,9 +32,11 @@ PYBIND11_MODULE(deepnet_backend, m) {
         },
         [](Tensor &t, const std::vector<float> &v) {
             t.data = v;
+#ifdef USE_CUDA
             t.cpu_dirty = true;
             t.cuda_dirty = false;
             if (t.is_cuda) t.sync_to_cuda();
+#endif
         })
       .def_property("grad",
         [](Tensor &t) -> std::vector<float>& {
@@ -43,9 +45,11 @@ PYBIND11_MODULE(deepnet_backend, m) {
         },
         [](Tensor &t, const std::vector<float> &v) {
             t.grad = v;
+#ifdef USE_CUDA
             t.cpu_dirty = true;
             t.cuda_dirty = false;
             if (t.is_cuda) t.sync_to_cuda();
+#endif
         })
       .def_readwrite("shape", &Tensor::shape)
       .def_readwrite("requires_grad", &Tensor::requires_grad)

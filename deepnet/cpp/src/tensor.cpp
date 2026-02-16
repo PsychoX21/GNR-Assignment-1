@@ -356,12 +356,14 @@ void Tensor::compute_strides() {
 
 TensorPtr Tensor::detach() {
   auto output = std::make_shared<Tensor>(shape, false, is_cuda);
+#ifdef USE_CUDA
   if (is_cuda) {
     cuda::cuda_memcpy_device_to_device(output->data_ptr(), data_ptr(),
                                      numel() * sizeof(float));
-  } else {
-    output->data = data;
+    return output;
   }
+#endif
+  output->data = data;
   return output;
 }
 
@@ -1166,7 +1168,9 @@ void Tensor::backward(const TensorPtr &gradient) {
 #endif
         } else {
             grad.assign(total_size, 1.0f);
+#ifdef USE_CUDA
             cpu_dirty = true;
+#endif
         }
     } else {
         // Use provided gradient
@@ -1181,7 +1185,9 @@ void Tensor::backward(const TensorPtr &gradient) {
 #endif
         } else {
             grad = gradient->data;
+#ifdef USE_CUDA
             cpu_dirty = true;
+#endif
         }
     }
   }
@@ -1212,7 +1218,9 @@ void Tensor::backward(const TensorPtr &gradient) {
     } else {
       std::fill(grad.begin(), grad.end(), 1.0f);
     }
+#ifdef USE_CUDA
     cpu_dirty = true;
+#endif
   }
 
   if (grad_fn) {
@@ -1238,7 +1246,9 @@ void Tensor::zero_grad() {
 #endif
   } else {
     std::fill(grad.begin(), grad.end(), 0.0f);
+#ifdef USE_CUDA
     cpu_dirty = true; // CPU grad is now zero, GPU is stale
+#endif
   }
 }
 
@@ -1259,7 +1269,7 @@ void Tensor::cuda() {
     }
   }
 #else
-  is_cuda = true;
+  throw std::runtime_error("DeepNet compiled without CUDA support");
 #endif
 }
 
@@ -1335,7 +1345,9 @@ void Tensor::fill_(float value) {
     if (requires_grad) {
       std::fill(grad.begin(), grad.end(), 0.0f);
     }
+#ifdef USE_CUDA
     cpu_dirty = true;
+#endif
   }
 }
 
@@ -1359,7 +1371,9 @@ void Tensor::uniform_(float min, float max) {
     for (auto &val : data) {
       val = dist(gen);
     }
+#ifdef USE_CUDA
     cpu_dirty = true;
+#endif
   }
 }
 
@@ -1383,7 +1397,9 @@ void Tensor::normal_(float mean, float std) {
     for (auto &val : data) {
       val = dist(gen);
     }
+#ifdef USE_CUDA
     cpu_dirty = true;
+#endif
   }
 }
 
@@ -1403,7 +1419,9 @@ TensorPtr Tensor::clone() {
 #endif
   // For CPU tensors, or if USE_CUDA is not defined
   auto output = Tensor::from_data(data, shape, requires_grad, is_cuda);
+#ifdef USE_CUDA
   output->cpu_dirty = true; // Output's CPU data is fresh
+#endif
   return output;
 }
 

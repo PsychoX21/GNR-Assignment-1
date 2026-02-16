@@ -171,7 +171,9 @@ void SGD::load_state_dict(const std::map<std::string, std::vector<std::vector<fl
         auto &v_data = state.at("velocity");
         for (size_t i = 0; i < std::min(v_data.size(), velocity.size()); ++i) {
             velocity[i]->data = v_data[i];
+#ifdef USE_CUDA
             velocity[i]->cpu_dirty = true;
+#endif
             if (velocity[i]->is_cuda) velocity[i]->sync_to_cuda();
         }
     }
@@ -202,7 +204,9 @@ void Adam::load_state_dict(const std::map<std::string, std::vector<std::vector<f
         auto &m_data = state.at("m");
         for (size_t i = 0; i < std::min(m_data.size(), m.size()); ++i) {
             m[i]->data = m_data[i];
+#ifdef USE_CUDA
             m[i]->cpu_dirty = true;
+#endif
             if (m[i]->is_cuda) m[i]->sync_to_cuda();
         }
     }
@@ -210,7 +214,9 @@ void Adam::load_state_dict(const std::map<std::string, std::vector<std::vector<f
         auto &v_data = state.at("v");
         for (size_t i = 0; i < std::min(v_data.size(), v.size()); ++i) {
             v[i]->data = v_data[i];
+#ifdef USE_CUDA
             v[i]->cpu_dirty = true;
+#endif
             if (v[i]->is_cuda) v[i]->sync_to_cuda();
         }
     }

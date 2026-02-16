@@ -134,6 +134,11 @@ def test_loss(loss_class, input_shape, target_data):
 def main():
     seed_everything(42)
     print("=== Verifying All Devices ===")
+
+    if not deepnet.is_cuda_available():
+        print("CUDA not available. Skipping device ops tests.")
+        print("=== Verification Complete (SKIPPED) ===")
+        return
     
     # Activations
     test_layer(deepnet.ReLU, [10, 10])
