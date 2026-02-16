@@ -4,7 +4,7 @@
 
 A high-performance CNN framework built from scratch with a C++ backend and Python frontend. Implements all tensor operations, layers, optimizers, and training utilities without any external ML libraries. Includes OpenMP for multi-threaded CPU parallelization and optional CUDA for GPU acceleration.
 
-> [IMPORTANT]
+> [**IMPORTANT**]
 > **Performance Note:** This codebase has been optimized and verified on an **NVIDIA RTX 4070 Laptop GPU** using CUDA and OpenMP. On this hardware, training completes in **<3 hours** and evaluation in **<1 hour** per dataset.
 > 
 > While CPU-only execution is fully supported and verified (via OpenMP), it is **significantly slower**. We strongly recommend using a CUDA-enabled NVIDIA GPU for reasonable training times. If you must run on CPU, please expect extended execution times.
